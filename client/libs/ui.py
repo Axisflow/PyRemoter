@@ -1,41 +1,22 @@
 from PySide6 import QtCore, QtWidgets, QtGui
+from PySide6.QtNetwork import QTcpSocket
 
-from libs import logger
+from libs import service, settings, logger
 lg = logger.logger()
 
-class Welcome(QtWidgets.QWidget):
-    def __init__(self, cwd, parent = None):
-        lg.log("Welcome.__init__")
-        super().__init__(parent)
-
-        self.scenes = []
-
-        # Create a widget to hold the layout
-        welcome = Welcome(cwd)
-        self.scenes.append(welcome)
-        self.setCentralWidget(welcome)
-
-    def change_scene(self, scene : QtWidgets.QWidget):
-        self.scenes.append(self.centralWidget())
-        self.scenes[-1].hide()
-        self.setCentralWidget(scene)
-        scene.show()
-
-    def back(self):
-        self.centralWidget().hide()
-        self.setCentralWidget(self.scenes[-1])
-        self.centralWidget().show()
-        self.scenes.pop()
-
 class Scene_About(QtWidgets.QWidget):
-    pass
+    def __init__(self, settings, parent = None):
+        super().__init__(parent)
+        self.settings = settings
 
 class Scene_Settings(QtWidgets.QWidget):
-    pass
+    def __init__(self, settings, parent = None):
+        super().__init__(parent)
+        self.settings = settings
 
 class Scene_LocateServer(QtWidgets.QWidget):
-    def __init__(self, settings):
-        super().__init__()
+    def __init__(self, settings, parent = None):
+        super().__init__(parent)
         self.setMaximumWidth(400)
         self.settings = settings
 
@@ -57,20 +38,20 @@ class Scene_LocateServer(QtWidgets.QWidget):
         # Create a line edit to enter the server address
         self.server_address = QtWidgets.QLineEdit()
         self.server_address.setPlaceholderText("Server address")
+        self.server_address.setText(self.settings.status_service_address)
         self.server_address.setAlignment(QtCore.Qt.AlignCenter)
-        #self.server_address.setText(self.settings["server_address"])
         middle_layout.addWidget(self.server_address, 5)
 
-        self.server_port = QtWidgets.QLineEdit()
-        self.server_port.setPlaceholderText("Server port")
+        self.server_port = QtWidgets.QSpinBox()
+        self.server_port.setRange(0, 65535)
+        self.server_port.setValue(self.settings.status_service_port)
         self.server_port.setAlignment(QtCore.Qt.AlignCenter)
-        #self.server_port.setText(self.settings["server_port"])
         middle_layout.addWidget(self.server_port, 1)
 
         # Create a button to connect to the server
-        confirm_button = QtWidgets.QPushButton("Confirm")
+        self.confirm_button = QtWidgets.QPushButton("Confirm")
         #confirm_button.clicked.connect(self.confirm)
-        layout.addWidget(confirm_button)
+        layout.addWidget(self.confirm_button)
 
 class Scene_Home(QtWidgets.QWidget):
     """
@@ -139,8 +120,8 @@ class Scene(QtWidgets.QWidget):
 
         self.scenes = [["Home", Scene_Home(self.settings), self.to_home], 
                        ["Locate Server", Scene_LocateServer(self.settings), self.to_locate_server], 
-                       ["Settings", Scene_Settings(), self.to_settings], 
-                       ["About", Scene_About(), self.to_about]]
+                       ["Settings", Scene_Settings(self.settings), self.to_settings], 
+                       ["About", Scene_About(self.settings), self.to_about]]
         for i in range(len(self.scenes)):
             self.scenes[i][1].hide()
             self.scenes[i].append(QtWidgets.QPushButton(self.scenes[i][0]))
@@ -174,19 +155,43 @@ class Scene(QtWidgets.QWidget):
         self.change_scene(3)
 
 class Entry(QtWidgets.QMainWindow):
+    status_bar_resetter = QtCore.QTimer()
     def __init__(self, settings):
         super().__init__()
-        self.setWindowTitle("Remoter")
-        self.resize(800, 600)
-        self.setWindowIcon(QtGui.QIcon(settings.getCWD() + "/images/remoter.png"))
-
-        # Create a widget to hold the layout
-        scene = Scene(settings)
-        self.setCentralWidget(scene)
-
-        # Create a label to hold the status
-        status_bar = QtWidgets.QStatusBar()
-        status_bar.showMessage("Ready")
-        self.setStatusBar(status_bar)
+        self.settings = settings
+        self.status_service = service.StatusService(settings)
+        self.design(settings)
+        self.build()
 
         QtCore.QTimer.singleShot(2500, self.show)
+
+    def design(self, settings):
+        self.setWindowTitle("Remoter")
+        self.resize(800, 600)
+        self.setWindowIcon(settings.getLogoIcon())
+
+        # Create a widget to hold the layout
+        self.scene = Scene(settings)
+        self.setCentralWidget(self.scene)
+
+        # Create a label to hold the status
+        self.status_bar = QtWidgets.QStatusBar()
+        self.status_bar.showMessage("Ready")
+        self.setStatusBar(self.status_bar)
+
+    def build(self):
+        self.scene.scenes[1][1].confirm_button.clicked.connect(self.ConnectStatus)
+        self.status_service.error_occurred.connect(self.showError)
+        self.status_bar_resetter.timeout.connect(self.clearError)
+
+    def ConnectStatus(self):
+        self.settings.setStatusServer(self.scene.scenes[1][1].server_address.text(), self.scene.scenes[1][1].server_port.value())
+        self.status_service.start()
+
+    def showError(self, error):
+        lg.log(error)
+        self.status_bar.showMessage(str(error))
+        self.status_bar_resetter.start(2000)
+
+    def clearError(self):
+        self.status_bar.showMessage("Ready")

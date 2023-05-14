@@ -1,15 +1,23 @@
 # 我們需要3個 port: (1)狀態溝通伺服器(TCP)，(2)鍵鼠、命令、檔案控制伺服器(TCP)，(3)影音傳輸伺服器(UDP)
 
-## 1 (1)所有客戶端在開啟時會跟伺服器要識別代碼(類似Teamviewer的)
-	client send: {status:"GetID", mac:<Mac address for identity>}  
-	client rece: {status:<"GetIDSuccess"/"GetIDFail">[, id:<ID number>, reason:<Why Fail?>]}  
+## 1-1 (1)新客戶端在開啟時會跟伺服器要識別代碼(類似Teamviewer的)
+	client send: {status:"GetID", mac:<MAC address>}  
+	client rece: {status:<"GetIDSuccess"/"GetIDFail">[, id:<ID number>, pwd:<password> reason:<Why Fail?>]}
+
+## 1-2 (1)客戶端在開啟時若有舊登入資訊，會跟伺服器要新密碼(若設定為密碼永久不變則不用回傳密碼)
+	client send: {status:"Login", id:<ID number>, pwd:<old password>}  
+	client rece: {status:<"LoginSuccess"/"LoginFail">[, pwd:<new password>, reason:<Why Fail?>]}
+
+## 1-3 (1)註冊新客戶端
+	client send: {status:"Register", mac:<MAC address>, id:<ID number>, pwd:<password>, permenant:<True/False>}  
+	client rece: {status:<"RegisterSuccess"/"RegisterFail">[, reason:<Why Fail?>]}
 
 ## 2-1 (1)保持連接，如果想控制其他客戶端
 	client send: {status:"AskConn", to:<{ID1, ID2, ...}>, password:<{"pwd1", "pwd2", ...}>} # 密碼若是空字串則代表使用詢問模式，否則使用直接連接模式  
 	client rece: {status:<"AskConnSuccess"/"AskConnFail">, from:<ID number>[, reason:<Why Fail?>, UDPip:<IP address or alias name>, UDPport:<port number>, TCPip:<格式一樣>, TCPport:<格式一樣>]} # 傳回影音傳輸伺服器、鍵鼠控制伺服器位置
 
 ## 2-2 (1)保持連接，以知道是否有被控需求，如果有
-	client rece: {status:"NeedConn", from:<ID number>, directly:<True/False>, UDPip:<IP address or alias name>, UDPport:<port number>, TCPip:<格式一樣>, TCPport:<格式一樣>]} # directly: True 直接連接模式， False 詢問模式  
+	client rece: {status:"NeedConn", from:<ID number>, directly:<True/False>, UDPip:<IP address or alias name>, UDPport:<port number>, TCPip:<格式一樣>, TCPport:<格式一樣>} # directly: True 直接連接模式， False 詢問模式  
 	client send: {status:<"NeedConnAccept"/"NeedConnRefuse">, to:<ID number>[, reason:<Why Refuse?>]} # 有可能被加入黑名單，或在詢問模式被拒絕了之類的
 
 ==============================================================================
@@ -84,3 +92,18 @@
 
 ## 12 中斷連線
 	# 內建函式可以處理
+
+===============================================================================
+
+# 其他設定
+# General:
+# 	設定(Set)
+# 		client send: {status:"SetInfo", key:<key>, value:<value>}  
+# 		client rece: {status:<"SetInfoSuccess"/"SetInfoFail">[, key:<key>, reason:<Why Fail?>]}
+# 	查詢(Get)
+# 		client send: {status:"GetInfo", key:<key>}  
+# 		client rece: {status:<"GetInfoSuccess"/"GetInfoFail">[, key:<key>, value:<value>, reason:<Why Fail?>]}
+
+## 13-1 (1)設定密碼永久性
+	client send: {status:"SetInfo", key:"pwd_permenant", permenant:<True/False>}  
+	client rece: {status:<"SetInfoSuccess"/"SetInfoFail">[, key:"pwd_permenant", reason:<Why Fail?>]}

@@ -84,6 +84,29 @@ class Scene_Home(QtWidgets.QWidget):
         logo.setAlignment(QtCore.Qt.AlignCenter)
         layout.addWidget(logo)
 
+class Scene_Test(QtWidgets.QWidget):
+    """
+    Create a line editor to enter string and a button to send it to the server.
+    """
+    def __init__(self, settings, parent = None):
+        super().__init__(parent)
+        self.settings = settings
+
+        # Create a layout for the central widget
+        layout = QtWidgets.QVBoxLayout()
+        layout.setAlignment(QtCore.Qt.AlignCenter)
+        self.setLayout(layout)
+
+        # Create a line edit to enter the string
+        self.line_edit = QtWidgets.QLineEdit()
+        self.line_edit.setPlaceholderText("Enter string")
+        self.line_edit.setText(self.settings.getTestJson())
+        self.line_edit.setAlignment(QtCore.Qt.AlignCenter)
+        layout.addWidget(self.line_edit)
+
+        # Create a button to send the string to the server
+        self.send_button = QtWidgets.QPushButton("Send")
+        layout.addWidget(self.send_button)
 
 class Scene(QtWidgets.QWidget):
     """
@@ -121,7 +144,8 @@ class Scene(QtWidgets.QWidget):
         self.scenes = [["Home", Scene_Home(self.settings), self.to_home], 
                        ["Locate Server", Scene_LocateServer(self.settings), self.to_locate_server], 
                        ["Settings", Scene_Settings(self.settings), self.to_settings], 
-                       ["About", Scene_About(self.settings), self.to_about]]
+                       ["About", Scene_About(self.settings), self.to_about],
+                       ["Test", Scene_Test(self.settings), self.to_test]]
         for i in range(len(self.scenes)):
             self.scenes[i][1].hide()
             self.scenes[i].append(QtWidgets.QPushButton(self.scenes[i][0]))
@@ -154,6 +178,9 @@ class Scene(QtWidgets.QWidget):
     def to_about(self):
         self.change_scene(3)
 
+    def to_test(self):
+        self.change_scene(4)
+
 class Entry(QtWidgets.QMainWindow):
     status_bar_resetter = QtCore.QTimer()
     def __init__(self, settings):
@@ -181,6 +208,7 @@ class Entry(QtWidgets.QMainWindow):
 
     def build(self):
         self.scene.scenes[1][1].confirm_button.clicked.connect(self.ConnectStatus)
+        self.scene.scenes[4][1].send_button.clicked.connect(self.sendTest)
         self.status_service.error_occurred.connect(self.showError)
         self.status_bar_resetter.timeout.connect(self.clearError)
 
@@ -189,9 +217,15 @@ class Entry(QtWidgets.QMainWindow):
         self.status_service.start()
 
     def showError(self, error):
-        lg.log(error)
         self.status_bar.showMessage(str(error))
         self.status_bar_resetter.start(2000)
 
     def clearError(self):
         self.status_bar.showMessage("Ready")
+
+    def sendTest(self):
+        self.settings.setTestJson(self.scene.scenes[4][1].line_edit.text())
+        json = QtCore.QJsonDocument.fromJson(self.scene.scenes[4][1].line_edit.text().encode())
+        self.status_service.send(json)
+        self.status_bar.showMessage("Send: " + self.scene.scenes[4][1].line_edit.text())
+        self.status_bar_resetter.start(10000)

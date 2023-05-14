@@ -12,6 +12,10 @@ class Settings:
     def load(self):
         setting_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppConfigLocation) + "/settings.ini"
         settings = QSettings(setting_path, QSettings.Format.IniFormat)
+
+        settings.beginGroup("General")
+        self.test_json = settings.value("test_json", '{}')
+        settings.endGroup()
         settings.beginGroup("StatusService")
         self.status_service_address = settings.value("address", "axisflow.biz")
         self.status_service_port = settings.value("port", 5000, int)
@@ -20,6 +24,10 @@ class Settings:
     def save(self):
         setting_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppConfigLocation) + "/settings.ini"
         settings = QSettings(setting_path, QSettings.Format.IniFormat)
+        
+        settings.beginGroup("General")
+        settings.setValue("test_json", self.test_json)
+        settings.endGroup()
         settings.beginGroup("StatusService")
         settings.setValue("address", self.status_service_address)
         settings.setValue("port", self.status_service_port)
@@ -44,6 +52,12 @@ class Settings:
     def getStatusServer(self):
         return self.status_service_address, self.status_service_port
     
+    def setTestJson(self, json : str):
+        self.test_json = json
+
+    def getTestJson(self):
+        return self.test_json
+
     def __del__(self):
         self.save()
         

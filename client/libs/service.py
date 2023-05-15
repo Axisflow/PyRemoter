@@ -10,6 +10,7 @@ Create a abstract class for the services.
 """
 class StatusService(QObject):
     socket = QTcpSocket()
+    have_info = Signal(str)
     def __init__(self, settings):
         super().__init__()
         self.settings = settings
@@ -23,10 +24,18 @@ class StatusService(QObject):
 
     def start(self) -> bool:
         if(self.socket.state() == QTcpSocket.SocketState.UnconnectedState):
+            self.have_info.emit("Connecting to " + self.settings.status_service_address + ":" + str(self.settings.status_service_port))
             self.socket.connectToHost(QHostAddress(self.settings.status_service_address), self.settings.status_service_port)
-            lg.log("Connecting to " + self.settings.status_service_address + ":" + str(self.settings.status_service_port))
             return True
     
+        return False
+    
+    def stop(self) -> bool:
+        if(self.socket.state() == QTcpSocket.SocketState.ConnectedState):
+            self.have_info.emit("Disconnecting from " + self.settings.status_service_address + ":" + str(self.settings.status_service_port))
+            self.socket.disconnectFromHost()
+            return True
+        
         return False
     
     def send(self, json: QJsonDocument) -> bool:
@@ -41,12 +50,12 @@ class StatusService(QObject):
     
     connected = Signal()
     def onConnected(self):
-        lg.log("Connected to " + self.socket.peerAddress().toString() + ":" + str(self.socket.peerPort()))
+        self.have_info.emit("Connected to " + self.socket.peerAddress().toString() + ":" + str(self.socket.peerPort()))
         self.connected.emit()
 
     disconnected = Signal()
     def onDisconnected(self):
-        lg.log("Disconnected from " + self.socket.peerAddress().toString() + ":" + str(self.socket.peerPort()))
+        self.have_info.emit("Disconnected from " + self.socket.peerAddress().toString() + ":" + str(self.socket.peerPort()))
         self.disconnected.emit()
 
     error_occurred = Signal(QTcpSocket.SocketError)

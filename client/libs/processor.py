@@ -6,10 +6,12 @@ lg = logger.logger()
 
 class StatusProcessor(QObject):
     def __init__(self, settings, service):
+        super().__init__()
         self.settings = settings
         self.service = service
         self.service.data_received.connect(self.Process)
         self.service.connected.connect(self.onConnected)
+        self.service.have_info.connect(self.onInfo)
 
     @Slot(QJsonDocument)
     def Process(self, json: QJsonDocument):
@@ -23,7 +25,12 @@ class StatusProcessor(QObject):
         elif status == "LoginSuccess":
             self.settings.setPassword(json_map["pwd"])
             lg.log("New Password: " + json_map["pwd"])
-        elif status == "GetIDFailed" or status == "LoginFailed":
+        elif status == "RegisterSuccess":
+            lg.log("Register Success")
+        elif status == "AskConnSuccess":
+            id = json_map["from"]
+            lg.log("{} accepted your connection request".format(id))
+        elif status == "GetIDFailed" or status == "LoginFailed" or status == "RegisterFailed" or status == "AskConnFailed":
             self.onError(json_map["reason"])
             
     error_occurred = Signal(str)
@@ -31,6 +38,11 @@ class StatusProcessor(QObject):
         lg.log(error)
         self.error_occurred.emit(error)
 
+    have_info = Signal(str)
+    def onInfo(self, info: str):
+        lg.log(info)
+        self.have_info.emit(info)
+    
     def onConnected(self):
         if self.settings.getAutoLogin():
             self.Login()
@@ -43,11 +55,15 @@ class StatusProcessor(QObject):
         if self.settings.getID() == "":
             self.GetID()
         else:
-            json_map = {"status": "Login", "id": self.settings.getID(), "pwd": self.settings.getPassword()}
+            json_map = {"status": "Login", "mac": self.GetMacAddress(), "id": self.settings.getID(), "pwd": self.settings.getPassword()}
             self.service.send(QJsonDocument.fromVariant(json_map))
 
     def Register(self, id: str, pwd: str, permeanent: bool):
-        json_map = {"status": "Register", "id": id, "pwd": pwd, "permanent": permeanent}
+        json_map = {"status": "Register", "mac": self.GetMacAddress(), "id": id, "pwd": pwd, "permanent": permeanent}
+        self.service.send(QJsonDocument.fromVariant(json_map))
+
+    def AskConnect(self, id: list, pwd: list):
+        json_map = {"status": "AskConn", "to": id, "pwd": pwd}
         self.service.send(QJsonDocument.fromVariant(json_map))
 
     @classmethod

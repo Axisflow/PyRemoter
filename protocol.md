@@ -5,7 +5,7 @@
 	client rece: {status:<"GetIDSuccess"/"GetIDFail">[, id:<ID number>, pwd:<password> reason:<Why Fail?>]}
 
 ## 1-2 (1)客戶端在開啟時若有舊登入資訊，會跟伺服器要新密碼(若設定為密碼永久不變則不用回傳密碼)
-	client send: {status:"Login", id:<ID number>, pwd:<old password>}  
+	client send: {status:"Login", mac:<MAC address>, id:<ID number>, pwd:<old password>}  
 	client rece: {status:<"LoginSuccess"/"LoginFail">[, pwd:<new password>, reason:<Why Fail?>]}
 
 ## 1-3 (1)註冊新客戶端
@@ -13,7 +13,7 @@
 	client rece: {status:<"RegisterSuccess"/"RegisterFail">[, reason:<Why Fail?>]}
 
 ## 2-1 (1)保持連接，如果想控制其他客戶端
-	client send: {status:"AskConn", to:<{ID1, ID2, ...}>, password:<{"pwd1", "pwd2", ...}>} # 密碼若是空字串則代表使用詢問模式，否則使用直接連接模式  
+	client send: {status:"AskConn", to:<{ID1, ID2, ...}>, pwd:<{"pwd1", "pwd2", ...}>} # 密碼若是空字串則代表使用詢問模式，否則使用直接連接模式  
 	client rece: {status:<"AskConnSuccess"/"AskConnFail">, from:<ID number>[, reason:<Why Fail?>, UDPip:<IP address or alias name>, UDPport:<port number>, TCPip:<格式一樣>, TCPport:<格式一樣>]} # 傳回影音傳輸伺服器、鍵鼠控制伺服器位置
 
 ## 2-2 (1)保持連接，以知道是否有被控需求，如果有

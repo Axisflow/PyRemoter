@@ -8,6 +8,7 @@ class logger:
     f = open(logfile, "w")
 
     def log(cls, msg):
+        print(str(msg))
         if(cls.enable):
             cls.f.write(time.strftime("%Y/%m/%d-%H:%M:%S", time.localtime()) + " \t " + str(msg) + "\r\n")
         return msg

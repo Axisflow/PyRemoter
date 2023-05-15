@@ -14,7 +14,13 @@ class Settings:
         settings = QSettings(setting_path, QSettings.Format.IniFormat)
 
         settings.beginGroup("General")
+        self.auto_locate_server = settings.value("auto_locate_server", True, bool)
+        self.auto_login = settings.value("auto_login", True, bool)
         self.test_json = settings.value("test_json", '{}')
+        settings.endGroup()
+        settings.beginGroup("Account")
+        self.id = settings.value("ID", "")
+        self.password = settings.value("password", "")
         settings.endGroup()
         settings.beginGroup("StatusService")
         self.status_service_address = settings.value("address", "axisflow.biz")
@@ -26,7 +32,13 @@ class Settings:
         settings = QSettings(setting_path, QSettings.Format.IniFormat)
         
         settings.beginGroup("General")
+        settings.setValue("auto_locate_server", self.auto_locate_server)
+        settings.setValue("auto_login", self.auto_login)
         settings.setValue("test_json", self.test_json)
+        settings.endGroup()
+        settings.beginGroup("Account")
+        settings.setValue("ID", self.id)
+        settings.setValue("password", self.password)
         settings.endGroup()
         settings.beginGroup("StatusService")
         settings.setValue("address", self.status_service_address)
@@ -51,6 +63,30 @@ class Settings:
 
     def getStatusServer(self):
         return self.status_service_address, self.status_service_port
+    
+    def setAutoLocateServer(self, auto : bool):
+        self.auto_locate_server = auto
+
+    def getAutoLocateServer(self):
+        return self.auto_locate_server
+    
+    def setAutoLogin(self, auto : bool):
+        self.auto_login = auto
+
+    def getAutoLogin(self):
+        return self.auto_login
+    
+    def setID(self, id : str):
+        self.id = id
+
+    def getID(self):
+        return self.id
+    
+    def setPassword(self, password : str):
+        self.password = password
+
+    def getPassword(self):
+        return self.password
     
     def setTestJson(self, json : str):
         self.test_json = json

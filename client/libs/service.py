@@ -18,6 +18,9 @@ class StatusService(QObject):
         self.socket.errorOccurred.connect(self.onError)
         self.socket.readyRead.connect(self.onReadyRead)
 
+        if self.settings.getAutoLocateServer():
+            self.start()
+
     def start(self) -> bool:
         if(self.socket.state() == QTcpSocket.SocketState.UnconnectedState):
             self.socket.connectToHost(QHostAddress(self.settings.status_service_address), self.settings.status_service_port)
@@ -51,9 +54,11 @@ class StatusService(QObject):
         lg.log("Error occurred: " + str(error))
         self.error_occurred.emit(error)
 
+    data_received = Signal(QJsonDocument)
     def onReadyRead(self):
         if self.socket.bytesAvailable() > 0:
-            data = self.socket.readAll().data().decode("utf-8")
+            data = self.socket.readAll().data()
+            self.data_received.emit(QJsonDocument.fromJson(data))
             lg.log(data)
 
 

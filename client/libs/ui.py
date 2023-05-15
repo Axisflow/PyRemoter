@@ -1,7 +1,7 @@
 from PySide6 import QtCore, QtWidgets, QtGui
 from PySide6.QtNetwork import QTcpSocket
 
-from libs import service, settings, logger
+from libs import service, settings, processor, logger
 lg = logger.logger()
 
 class Scene_About(QtWidgets.QWidget):
@@ -187,6 +187,7 @@ class Entry(QtWidgets.QMainWindow):
         super().__init__()
         self.settings = settings
         self.status_service = service.StatusService(settings)
+        self.status_processer = processor.StatusProcessor(settings, self.status_service)
         self.design(settings)
         self.build()
 
@@ -209,6 +210,7 @@ class Entry(QtWidgets.QMainWindow):
     def build(self):
         self.scene.scenes[1][1].confirm_button.clicked.connect(self.ConnectStatus)
         self.scene.scenes[4][1].send_button.clicked.connect(self.sendTest)
+        self.status_service.error_occurred.connect(self.showError)
         self.status_service.error_occurred.connect(self.showError)
         self.status_bar_resetter.timeout.connect(self.clearError)
 

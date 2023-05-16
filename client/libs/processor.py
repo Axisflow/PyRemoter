@@ -1,8 +1,8 @@
 from PySide6.QtCore import QObject, Signal, Slot, QByteArray, QJsonDocument, QJsonValue, QJsonArray
 from PySide6.QtNetwork import QNetworkInterface
 
-from libs import logger
-lg = logger.logger()
+from libs import settings, service
+from libs.logger import logger as lg
 
 class StatusProcessor(QObject):
     def __init__(self, settings, service):
@@ -30,8 +30,17 @@ class StatusProcessor(QObject):
         elif status == "AskConnSuccess":
             id = json_map["from"]
             lg.log("{} accepted your connection request".format(id))
-        elif status == "GetIDFailed" or status == "LoginFailed" or status == "RegisterFailed" or status == "AskConnFailed":
+        elif status == "NeedConn":
+            id = json_map["from"]
+            directly = json_map["directly"]
+            if directly:
+                self.ReturnNeedConnect(True, id)
+            else:
+                self.need_connect.emit(id)
+        elif status == "GetIDFail" or status == "LoginFail" or status == "RegisterFail" or status == "AskConnFail":
             self.onError(json_map["reason"])
+        else:
+            self.onError("Unknown status: " + status)
             
     error_occurred = Signal(str)
     def onError(self, error: str):
@@ -64,6 +73,13 @@ class StatusProcessor(QObject):
 
     def AskConnect(self, id: list, pwd: list):
         json_map = {"status": "AskConn", "to": id, "pwd": pwd}
+        self.service.send(QJsonDocument.fromVariant(json_map))
+
+    need_connect = Signal(str)
+    def ReturnNeedConnect(self, accept: bool, to: str, reason = ""):
+        json_map = {"status": "NeedConn" + "Accept" if accept else "Refuse", "to": to}
+        if not accept:
+            json_map["reason"] = reason
         self.service.send(QJsonDocument.fromVariant(json_map))
 
     @classmethod

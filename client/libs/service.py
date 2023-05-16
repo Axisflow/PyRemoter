@@ -2,8 +2,8 @@ from PySide6 import QtCore
 from PySide6.QtNetwork import QHostAddress, QTcpSocket, QUdpSocket
 from PySide6.QtCore import QObject, Signal, QByteArray, QJsonDocument, QJsonValue, QJsonArray
 
-from libs import settings, logger
-lg = logger.logger()
+from libs import settings
+from libs.logger import logger as lg
 
 """
 Create a abstract class for the services.

@@ -25,13 +25,13 @@
 # General: 傳至正確的被控端並去除 ID number (也可以不用？)
 
 ## 3-1 (2)控制端傳輸滑鼠座標
-	client send: {type:"MousePoint", to:<ID number>, mx:<mouse point x>, my:<mouse point y>}
+	client send: {type:"MousePoint", from:<ID number>, to:<ID number>, mx:<mouse point x>, my:<mouse point y>}
 
 ## 3-2 (2)被控端接收滑鼠座標
 	client rece: {type:"MousePoint", mx:<mouse point x>, my:<mouse point y>}
 
 ## 4-1 (2)控制端傳輸滑鼠動作
-	client send: {type:"MouseEvent", to:<ID number>, mtype:<mouse event>}
+	client send: {type:"MouseEvent", from:<ID number>, to:<ID number>, mtype:<mouse event>}
 
 ## 4-2 (2)被控端接收滑鼠動作
 	client rece: {type:"MouseEvent", mtype:<mouse event>}
@@ -40,7 +40,7 @@
 	client send: {type:"Key", to:<ID number>, key:<{key1, key2, ...}>}
 
 ## 5-2 (2)被控端接收鍵盤按鍵組合
-	client rece: {type:"Key", key:<{key1, key2, ...}>}
+	client rece: {type:"Key", from:<ID number>, key:<{key1, key2, ...}>}
 
 ===============================================================================
 

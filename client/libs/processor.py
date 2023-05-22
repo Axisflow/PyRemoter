@@ -1,17 +1,99 @@
-from PySide6.QtCore import QObject, Signal, Slot, QByteArray, QJsonDocument, QJsonValue, QJsonArray
+from PySide6.QtCore import QObject, Signal, Slot, QByteArray, QJsonDocument, QThread
 from PySide6.QtNetwork import QNetworkInterface
 
-from libs import settings, service
+from libs import settings, service, panel
 from libs.logger import logger as lg
+
+class ServerLocation:
+    def __init__(self, addr: str, port: int):
+        self.addr = addr
+        self.port = port
+    def __eq__(self, other):
+        return self.addr == other.addr and self.port == other.port
+    def __hash__(self):
+        return hash((self.addr, self.port))
+
+class StreamProcessor(QObject):
+    def __init__(self, settings):
+        self.settings = settings
+        
+        self.ask_stream_service = {}
+        self.ask_stream_management = {}
+        self.need_stream_service = {}
+        self.need_stream_management = {}
+
+    
+    def AddAskPair(self, id: str, addr: str, port: int, management: panel.AskManagement):
+        sl = ServerLocation(addr, port)
+        if(sl not in self.ask_stream_service):
+            self.ask_stream_service[sl] = service.StreamServiceStruct()
+            self.ask_stream_service[sl].service.start()
+
+        self.ask_stream_management[id] = management
+        self.AskConnect(self.ask_stream_service[sl].service, management)
+
+    def AddNeedPair(self, id: str, addr: str, port: int, management: panel.NeedManagement):
+        sl = ServerLocation(addr, port)
+        if(sl not in self.need_stream_service):
+            self.need_stream_service[sl] = service.StreamServiceStruct()
+            self.need_stream_service[sl].service.start()
+
+        self.need_stream_management[id] = management
+        self.NeedConnect(self.need_stream_service[sl].service, management)
+
+    def AskConnect(self, service: service.StreamService, management: panel.AskManagement):
+        pass
+
+    def NeedConnect(self, service: service.StreamService, management: panel.NeedManagement):
+        management.screenshotted.connect(service.sendScreenShot)
+
+class CommandProcessor(QObject):
+    def __init__(self, settings):
+        self.settings = settings
+
+        self.ask_command_service = {}
+        self.ask_command_management = {}
+        self.need_command_service = {}
+        self.need_command_management = {}
+
+    def AddAskPair(self, id: str, addr: str, port: int, management: panel.AskManagement):
+        sl = ServerLocation(addr, port)
+        if(sl not in self.ask_command_service):
+            self.ask_command_service[sl] = service.CommandServiceStruct()
+            self.ask_command_service[sl].service.start()
+            self.ask_command_service[sl].connect_host.emit(sl.addr, sl.port)
+
+        self.ask_command_management[id] = management
+        self.ask_command_service[sl].signals.add_ask_pair.emit(id)
+
+    def AddNeedPair(self, id: str, addr: str, port: int, management: panel.NeedManagement):
+        sl = ServerLocation(addr, port)
+        if(sl not in self.need_command_service):
+            self.need_command_service[sl] = service.CommandServiceStruct()
+            self.need_command_service[sl].service.start()
+
+        self.need_command_management[id] = management
+
+    def AskConnect(self, id: str, signals: service.CommandServicePairSignals):
+        pass
+
+    def NeedConnect(self, id: str, signals: service.CommandServicePairSignals):
+        signals.rece_mouse_point.connect(self.need_command_management[id].MoveMouse)
 
 class StatusProcessor(QObject):
     def __init__(self, settings, service):
         super().__init__()
         self.settings = settings
         self.service = service
+        self.stream_processor = StreamProcessor(settings)
+        self.command_processor = CommandProcessor(settings)
         self.service.data_received.connect(self.Process)
         self.service.connected.connect(self.onConnected)
         self.service.have_info.connect(self.onInfo)
+        self.ask_stream_pair = {}
+        self.ask_command_pair = {}
+        self.need_stream_pair = {}
+        self.need_command_pair = {}
 
     @Slot(QJsonDocument)
     def Process(self, json: QJsonDocument):
@@ -29,10 +111,14 @@ class StatusProcessor(QObject):
             lg.log("Register Success")
         elif status == "AskConnSuccess":
             id = json_map["from"]
+            self.ask_stream_pair[id] = {"ip": json_map["UDPip"], "port": json_map["UDPport"]}
+            self.ask_command_pair[id] = {"ip": json_map["TCPip"], "port": json_map["TCPport"]}
             lg.log("{} accepted your connection request".format(id))
         elif status == "NeedConn":
             id = json_map["from"]
             directly = json_map["directly"]
+            self.need_stream_pair[id] = {"ip": json_map["UDPip"], "port": json_map["UDPport"]}
+            self.need_command_pair[id] = {"ip": json_map["TCPip"], "port": json_map["TCPport"]}
             if directly:
                 self.ReturnNeedConnect(True, id)
             else:
@@ -80,6 +166,8 @@ class StatusProcessor(QObject):
         json_map = {"status": "NeedConn" + "Accept" if accept else "Refuse", "to": to}
         if not accept:
             json_map["reason"] = reason
+            self.need_stream_pair.pop(to)
+            self.need_command_pair.pop(to)
         self.service.send(QJsonDocument.fromVariant(json_map))
 
     @classmethod

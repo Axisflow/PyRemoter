@@ -2,7 +2,6 @@ import json
 import secrets
 import socket
 import string
-import uuid
 import threading
 
 
@@ -99,7 +98,8 @@ def client_handler(conn, addr):
                     #######################################################
                     # generate random user_uuid
                     #######################################################
-                    user_uuid = uuid.uuid4()
+                    alphabet = string.digits
+                    user_uuid = ''.join(secrets.choice(alphabet) for i in range(8))
                     #######################################################
                     # mac -> uuid
                     #######################################################

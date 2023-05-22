@@ -337,6 +337,7 @@ class Entry(QtWidgets.QMainWindow):
         self.status_service.error_occurred.connect(self.showError)
         self.status_processer.have_info.connect(self.showInfo)
         self.status_processer.error_occurred.connect(self.showError)
+        self.status_processer.need_connect.connect(self.ConnectComfirm)
         self.status_bar_resetter.timeout.connect(self.clearStatusBar)
 
     def ConnectStatus(self):
@@ -348,6 +349,19 @@ class Entry(QtWidgets.QMainWindow):
 
     def ConnectFriends(self):
         self.status_processer.AskConnect(self.scene.scenes[2][1].id_list, self.scene.scenes[2][1].password_list)
+
+    def ConnectComfirm(self, id: str):
+        msgBox = QtWidgets.QMessageBox()
+        msgBox.setWindowTitle("A Friend Want to Connect You!")
+        msgBox.setText("ID \"{}\" Connection Need".format(id))
+        msgBox.setInformativeText("Do you want to accept?")
+        msgBox.setStandardButtons(QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
+        msgBox.setDefaultButton(QtWidgets.QMessageBox.No)
+        ret = msgBox.exec()
+        if ret == QtWidgets.QMessageBox.Yes:
+            self.status_processer.ReturnNeedConnect(True, id)
+        else:
+            self.status_processer.ReturnNeedConnect(False, id, "Refused by user")
 
     def onConnected(self):
         self.scene.scenes[1][1].confirm_button.setDisabled(True)
@@ -380,6 +394,7 @@ class Entry(QtWidgets.QMainWindow):
         self.status_service.send(json)
         self.status_bar.showMessage("Send: " + self.scene.scenes[5][1].line_edit.text())
         self.status_bar_resetter.start(10000)
+
 
 class MsgBox_AddFriend(QtWidgets.QMainWindow):
     """

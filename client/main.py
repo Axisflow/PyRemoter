@@ -18,7 +18,7 @@ if __name__ == "__main__":
     lg.log("Starting Remoter...")
     lg.separator()
 
-    app = QApplication([])
+    app = QApplication(sys.argv)
     dir = QFileInfo(__main__.__file__).absoluteDir().absolutePath()
     settings = settings.Settings()
     settings.setCWD(dir)

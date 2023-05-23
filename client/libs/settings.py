@@ -1,7 +1,7 @@
 from PySide6.QtCore import Qt, QDir, QStandardPaths, QSettings
 from PySide6.QtGui import QPixmap, QIcon
 
-from libs.logger import logger as lg
+from .logger import logger as lg
 
 class Settings:
     def __init__(self):

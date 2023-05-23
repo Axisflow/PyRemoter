@@ -2,8 +2,8 @@ from PySide6 import QtCore, QtWidgets, QtGui
 from PySide6.QtNetwork import QTcpSocket
 from PySide6.QtCore import Signal, Slot
 
-from libs import service, settings, processor
-from libs.logger import logger as lg
+from . import service, settings, processor
+from .logger import logger as lg
 
 class Scene_About(QtWidgets.QWidget):
     def __init__(self, settings, parent = None):

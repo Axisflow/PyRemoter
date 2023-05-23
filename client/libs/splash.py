@@ -1,6 +1,6 @@
 from PySide6 import QtCore, QtWidgets, QtGui
 
-from libs import settings
+from . import settings
 
 class Splash(QtWidgets.QLabel):
     def __init__(self, settings):

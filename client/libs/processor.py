@@ -1,8 +1,8 @@
 from PySide6.QtCore import QObject, Signal, Slot, QByteArray, QJsonDocument, QThread
 from PySide6.QtNetwork import QNetworkInterface
 
-from libs import settings, service, panel
-from libs.logger import logger as lg
+from . import settings, service, panel
+from .logger import logger as lg
 
 class ServerLocation:
     def __init__(self, addr: str, port: int):
@@ -41,11 +41,12 @@ class StreamProcessor(QObject):
         self.need_stream_management[id] = management
         self.NeedConnect(self.need_stream_service[sl].service, management)
 
-    def AskConnect(self, service: service.StreamService, management: panel.AskManagement):
+    def AskConnect(self, id: str, signals: service.CommandServicePairSignals):
         pass
 
-    def NeedConnect(self, service: service.StreamService, management: panel.NeedManagement):
-        management.screenshotted.connect(service.sendScreenShot)
+    def NeedConnect(self, id: str, signals: service.CommandServicePairSignals):
+        self.need_stream_management[id].send_part_screen = signals.send_part_screen
+        pass
 
 class CommandProcessor(QObject):
     def __init__(self, settings):
@@ -79,6 +80,7 @@ class CommandProcessor(QObject):
 
     def NeedConnect(self, id: str, signals: service.CommandServicePairSignals):
         signals.rece_mouse_point.connect(self.need_command_management[id].MoveMouse)
+        pass
 
 class StatusProcessor(QObject):
     def __init__(self, settings, service):

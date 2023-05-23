@@ -4,24 +4,17 @@ from PySide6.QtWidgets import QMainWindow, QApplication, QWidget, QLabel, QStatu
 from PySide6.QtMultimedia import QMediaRecorder
 import pyautogui
 
-from libs import settings
-from libs.logger import logger as lg
+from . import settings
+from .logger import logger as lg
 
-class NeedManagement(QThread):
-    def __init__(self, settings, id: str):
-        super().__init__()
-        self.settings = settings
-        self.id = id
-
-    def run(self):
+class ControlBackground(QObject):
+    def __init__(self, settings):
         self.shot_timer = QTimer()
         self.shot_timer.timeout.connect(self.shot)
         self.shot_timer.setInterval(1000)
         self.shot_timer.start()
 
-        self.exec()
-
-    screenshotted = Signal(str, QByteArray)
+    screenshotted = Signal(QByteArray)
     def shot(self):
         screen = QScreen.grabWindow(QApplication.primaryScreen(), 0)
         pixmap = QPixmap(screen)
@@ -29,7 +22,57 @@ class NeedManagement(QThread):
         buff = QBuffer(ba)
         buff.open(QIODevice.WriteOnly)
         pixmap.save(buff, "PNG")
-        self.screenshotted.emit(self.id, ba)
+        self.screenshotted.emit(ba)
+
+
+class NeedManagement(QThread):
+    __max_split_length__ = 120
+    seq_id = ""
+    time_stamp = 0
+    def __init__(self, settings, id: str):
+        super().__init__()
+        self.settings = settings
+        self.id = id
+
+    def run(self):
+        self.background = ControlBackground(self.settings)
+        self.exec()
+
+    send_part_screen = Signal(str, str, int, int, QByteArray) # id, seq_id, time_stamp, part_num, pixmap
+    def processScreenShot(self, pixmap: QByteArray):
+        """
+        for every 120*120px, send a part of screen
+        if the screen is not a multiple of 120, send the rest of screen
+        """
+        pixmap = QPixmap(pixmap)
+        left_width = pixmap.width() % self.__max_split_length__
+        left_height = pixmap.height() % self.__max_split_length__
+        num_width = pixmap.width() // self.__max_split_length__
+        num_height = pixmap.height() // self.__max_split_length__
+        part_num = 0
+        for i in range(num_width):
+            for j in range(num_height):
+                self.send_part_screen.emit(self.id, self.seq_id, self.time_stamp, part_num, pixmap.copy(i * self.__max_split_length__, j * self.__max_split_length__, self.__max_split_length__, self.__max_split_length__).toImage().saveToData("PNG"))
+                part_num += 1
+        if left_width != 0:
+            for i in range(num_height):
+                self.send_part_screen.emit(self.id, self.seq_id, self.time_stamp, part_num, pixmap.copy(num_width * self.__max_split_length__, i * self.__max_split_length__, left_width, self.__max_split_length__).toImage().saveToData("PNG"))
+                part_num += 1
+        if left_height != 0:
+            for i in range(num_width):
+                self.send_part_screen.emit(self.id, self.seq_id, self.time_stamp, part_num, pixmap.copy(i * self.__max_split_length__, num_height * self.__max_split_length__, self.__max_split_length__, left_height).toImage().saveToData("PNG"))
+                part_num += 1
+        if left_width != 0 and left_height != 0:
+            self.send_part_screen.emit(self.id, self.seq_id, self.time_stamp, part_num, pixmap.copy(num_width * self.__max_split_length__, num_height * self.__max_split_length__, left_width, left_height).toImage().saveToData("PNG"))
+            part_num += 1
+
+        self.time_stamp += 1
+
+    @Slot(str, str)
+    def NeedUpdate(self, key: str, value: str):
+        if key == "SeqId":
+            self.seq_id = value
+            self.time_stamp = 0
 
     @Slot(int, int)
     def MoveMouse(self, x, y):
@@ -68,7 +111,7 @@ class ControlWindow(QMainWindow):
 
     def screenEvent(self, event):
         if event.type() == QEvent.Type.MouseMove:
-            self.mouseMoved.emit(event.x(), event.y())
+            self.mouseMoved.emit(event.position().x(), event.position().y())
         else:
             self.mouseAction.emit(event.type())
         return True

@@ -70,27 +70,33 @@
 	client rece: {status:"NeedMonitor", from:<ID number>, question:<Anything>}  
 	client send: {status:<"NeedMonitorAccept/NeedMonitorRefuse">, to:<ID number>, question:<Anything>[, answer:<Anything>, reason:<Why Refuse?>]}
 
+## 9-1 (2)控制端請求更新狀態
+	client send: {status:"AskUpdate", to:<ID number>, key:<Anything>, value:<Anything>}
+
+## 9-2 (2)被控端接收狀態更新
+	client rece: {status:"NeedUpdate", from:<ID number>, key:<Anything>, value:<Anything>}
+
 ===============================================================================
 
-## 9-1 (1)被控端中斷控制，被控端應
+## 10-1 (1)被控端中斷控制，被控端應
 	client send: {status:"AbortNeedConn", to:<ID number>}
 
-## 9-2 (1)被控端中斷控制，控制端應
+## 10-2 (1)被控端中斷控制，控制端應
 	client rece: {status:"AbortNeedConn", from:<ID number>}
 
-## 10-1 (1)控制端中斷控制，控制端應
+## 11-1 (1)控制端中斷控制，控制端應
 	client send: {status:"AbortAskConn", to:<{ID1, ID2, ...}>}
 
-## 10-2 (1)控制端中斷控制，被控端應
+## 11-2 (1)控制端中斷控制，被控端應
 	client rece: {status:"AbortAskConn", from:<ID number>}
 
 ===============================================================================
 
-## 11 (1)要求伺服器更改客戶端密碼
+## 12 (1)要求伺服器更改客戶端密碼
 	client send: {status:"ChangePassword", password:<Password>}  
 	client rece: {status:<"ChangePasswordSuccess"/"ChangePasswordFail">[, reason:<Why Fail?>]}
 
-## 12 中斷連線
+## 13 中斷連線
 	# 內建函式可以處理
 
 ===============================================================================
@@ -104,6 +110,6 @@
 # 		client send: {status:"GetInfo", key:<key>}  
 # 		client rece: {status:<"GetInfoSuccess"/"GetInfoFail">[, key:<key>, value:<value>, reason:<Why Fail?>]}
 
-## 13-1 (1)設定密碼永久性
+## 14-1 (1)設定密碼永久性
 	client send: {status:"SetInfo", key:"pwd_permenant", permenant:<True/False>}  
 	client rece: {status:<"SetInfoSuccess"/"SetInfoFail">[, key:"pwd_permenant", reason:<Why Fail?>]}

@@ -2,8 +2,8 @@ from PySide6 import QtCore
 from PySide6.QtNetwork import QHostAddress, QTcpSocket, QUdpSocket
 from PySide6.QtCore import QObject, Signal, Slot, QThread, QByteArray, QJsonDocument, QJsonValue, QJsonArray
 
-from libs import settings
-from libs.logger import logger as lg
+from . import settings
+from .logger import logger as lg
 
 """
 Create a abstract class for the services.
@@ -105,9 +105,11 @@ class StreamService(QThread):
     def sendScreenShot(self, id: str, data: QByteArray) -> bool:
         pass
 
-class CommandServicePairSiganls(QObject):
+class CommandServicePairSignals(QObject):
+    rece_need_update = Signal(str, str)
     rece_mouse_point = Signal(int, int)
 
+    send_part_screen = Signal(str, str, int, int, QByteArray)
     send_mouse_point = Signal(int, int)
 
 class CommandService(QThread):
@@ -149,17 +151,19 @@ class CommandService(QThread):
     def Process(self, json: QJsonDocument):
         json_map = json.toVariant()
         _type = json_map["type"]
+        if _type == "NeedUpdate":
+            self.need_signals_pair[json_map["from"]].rece_need_update.emit(json_map["key"], json_map["value"])
         if _type == "MousePoint":
-            self.need_signals_pair[json_map["id"]].mouse_point.emit(json_map["mx"], json_map["my"])
+            self.need_signals_pair[json_map["id"]].rece_mouse_point.emit(json_map["mx"], json_map["my"])
         elif _type == "MouseEvent":
             pass
 
-    ask_signals_prepared = Signal(str, CommandServicePairSiganls)
+    ask_signals_prepared = Signal(str, CommandServicePairSignals)
     def AddAskPair(self, id: str):
-        self.ask_signals_pair[id] = CommandServicePairSiganls()
+        self.ask_signals_pair[id] = CommandServicePairSignals()
         self.ask_signals_prepared.emit(id, self.ask_signals_pair[id])
         
-    need_signals_prepared = Signal(str, CommandServicePairSiganls)
+    need_signals_prepared = Signal(str, CommandServicePairSignals)
     def AddNeedPair(self, id: str):
-        self.need_signals_pair[id] = CommandServicePairSiganls()
+        self.need_signals_pair[id] = CommandServicePairSignals()
         self.need_signals_prepared.emit(id, self.need_signals_pair[id])

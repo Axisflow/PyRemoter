@@ -1,4 +1,4 @@
-from PySide6.QtCore import Qt, QObject, Signal, Slot, QThread, QTimer, QEvent, QByteArray, QBuffer, QIODevice
+from PySide6.QtCore import Qt, QObject, Signal, Slot, QThread, QTimer, QEvent, QByteArray, QBuffer, QIODevice, QRandomGenerator
 from PySide6.QtGui import QScreen, QPixmap, QCursor, QResizeEvent, QMouseEvent
 from PySide6.QtWidgets import QMainWindow, QApplication, QWidget, QLabel, QStatusBar, QGridLayout
 from PySide6.QtMultimedia import QMediaRecorder
@@ -9,7 +9,7 @@ from .logger import logger as lg
 
 class ControlBackground(QObject):
     def __init__(self, settings):
-        self.shot_timer = QTimer()
+        self.shot_timer = QTimer(self)
         self.shot_timer.timeout.connect(self.shot)
         self.shot_timer.setInterval(1000)
         self.shot_timer.start()
@@ -20,7 +20,7 @@ class ControlBackground(QObject):
         pixmap = QPixmap(screen)
         ba = QByteArray()
         buff = QBuffer(ba)
-        buff.open(QIODevice.WriteOnly)
+        buff.open(QIODevice.OpenModeFlag.WriteOnly)
         pixmap.save(buff, "PNG")
         self.screenshotted.emit(ba)
 
@@ -36,10 +36,13 @@ class NeedManagement(QThread):
 
     def run(self):
         self.background = ControlBackground(self.settings)
+        self.background.screenshotted.connect(self.processScreenShot)
         self.exec()
 
-    send_part_screen = Signal(str, str, int, int, QByteArray) # id, seq_id, time_stamp, part_num, pixmap
+    send_part_screen = None # Signal(str, str, int, int, QByteArray) # id, seq_id, time_stamp, part_num, pixmap
     def processScreenShot(self, pixmap: QByteArray):
+        if self.send_part_screen is None:
+            return
         """
         for every 120*120px, send a part of screen
         if the screen is not a multiple of 120, send the rest of screen
@@ -116,7 +119,7 @@ class ControlWindow(QMainWindow):
             self.mouseAction.emit(event.type())
         return True
 
-    @Slot(str, QByteArray)
+    @Slot(int, QByteArray)
     def setPixmap(self, idx, pixmap):
         if idx < len(self.splitted_screen):
             self.splitted_screen[idx].setPixmap(pixmap)
@@ -187,6 +190,7 @@ class ControlWindow(QMainWindow):
         self.combined_screen.move(self.central_widget.rect().center() - self.combined_screen.rect().center())
 
 class AskManagement(QThread):
+    update = None # Signal(str, str)
     def __init__(self, settings, id: str):
         super().__init__()
         self.settings = settings
@@ -194,5 +198,75 @@ class AskManagement(QThread):
 
     def run(self):
         self.window = ControlWindow(self.settings)
+        self.window.mouseMoved.connect(self.sendMousePoint)
         self.window.show()
+
+        self.seq_id_now = None
+        self.seq_id_deprecating = None
+        self.screen_now_time_stamp = -1
+        self.screen_now_part_num = -1
+        self.seq_id_timer = QTimer(self)
+        self.seq_id_timer.timeout.connect(self.changeSeqId)
+        self.seq_id_timer.setSingleShot(True)
+        self.changeSeqId()
+        self.deprecate_seq_id_timer = QTimer(self)
+        self.deprecate_seq_id_timer.timeout.connect(self.deprecateSeqId)
+        self.deprecate_seq_id_timer.setSingleShot(True)
+        self.deprecateSeqId()
+
         self.exec()
+
+    @Slot()
+    def changeSeqId(self):
+        if self.update is None:
+            return
+        
+        self.seq_id_deprecating = self.seq_id_now
+        char_set = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+        while True:
+            self.seq_id_now = ""
+            for i in range(10):
+                self.seq_id_now += char_set[QRandomGenerator().bounded(len(char_set))]
+            if self.seq_id_now != self.seq_id_deprecating:
+                break
+
+        self.update.emit("SeqId", self.seq_id_now)
+        self.seq_id_timer.start(QRandomGenerator().bounded(15000, 25000))
+        self.deprecate_seq_id_timer.start(QRandomGenerator().bounded(5000, 7500))
+
+    @Slot()
+    def deprecateSeqId(self):
+        self.deprecate_seq_id_timer.stop()
+        self.screen_now_time_stamp = -1
+        self.screen_now_part_num = -1
+        self.seq_id_deprecating = None
+
+    @Slot(str, int, int, QByteArray)
+    def setScreenPixmap(self, seq_id, time_stamp, part_num, pixmap): #seq_id, time_stamp, part_num, pixmap
+        if self.seq_id_deprecating == None:
+            if time_stamp > self.screen_now_time_stamp:
+                self.screen_now_time_stamp = time_stamp
+                self.screen_now_part_num = part_num
+                self.window.setPixmap(part_num, pixmap)
+            elif time_stamp == self.screen_now_time_stamp:
+                if part_num > self.screen_now_part_num:
+                    self.window.setPixmap(part_num, pixmap)
+        else:
+            if seq_id == self.seq_id_deprecating:
+                if time_stamp > self.screen_now_time_stamp:
+                    self.screen_now_time_stamp = time_stamp
+                    self.screen_now_part_num = part_num
+                    self.window.setPixmap(part_num, pixmap)
+                elif time_stamp == self.screen_now_time_stamp:
+                    if part_num > self.screen_now_part_num:
+                        self.window.setPixmap(part_num, pixmap)
+            elif seq_id == self.seq_id_now:
+                self.deprecateSeqId()
+                self.screen_now_time_stamp = time_stamp
+                self.screen_now_part_num = part_num
+                self.window.setPixmap(part_num, pixmap)
+
+    send_mouse_point = None # Signal(str, int, int)
+    def sendMousePoint(self, x, y):
+        if self.send_mouse_point is not None:
+            self.send_mouse_point.emit(self.id, x, y)

@@ -25,16 +25,16 @@
 # General: 傳至正確的被控端並去除 ID number (也可以不用？)
 
 ## 3-1 (2)控制端傳輸滑鼠座標
-	client send: {type:"MousePoint", from:<ID number>, to:<ID number>, mx:<mouse point x>, my:<mouse point y>}
+	client send: {type:"MousePoint", to:<ID number>, mx:<mouse point x>, my:<mouse point y>}
 
 ## 3-2 (2)被控端接收滑鼠座標
-	client rece: {type:"MousePoint", mx:<mouse point x>, my:<mouse point y>}
+	client rece: {type:"MousePoint", from:<ID number>, mx:<mouse point x>, my:<mouse point y>}
 
 ## 4-1 (2)控制端傳輸滑鼠動作
-	client send: {type:"MouseEvent", from:<ID number>, to:<ID number>, mtype:<mouse event>}
+	client send: {type:"MouseEvent", to:<ID number>, mtype:<mouse event>}
 
 ## 4-2 (2)被控端接收滑鼠動作
-	client rece: {type:"MouseEvent", mtype:<mouse event>}
+	client rece: {type:"MouseEvent", from:<ID number>, mtype:<mouse event>}
 
 ## 5-1 (2)控制端傳輸鍵盤按鍵組合
 	client send: {type:"Key", to:<ID number>, key:<{key1, key2, ...}>}
@@ -47,13 +47,13 @@
 # General: 加上被控端的 ID number 再傳至控制端
 
 ## 6-1 (3)被控端傳輸螢幕畫面
-	client send: screen;<screen data>
+	client send: <ID number>;screen;<screen data>
 
 ## 6-2 (3)控制端接收螢幕畫面
 	client rece: <ID number>;screen;<screen data>
 
 ## 7-1 (3)被控端傳輸聲音
-	client send: audio;<audio data>
+	client send: <ID number>;audio;<audio data>
 
 ## 7-2 (3)控制端接收聲音
 	client rece: <ID number>;audio;<audio data>

@@ -5,9 +5,6 @@ from PySide6.QtCore import QObject, Signal, Slot, QThread, QByteArray, QJsonDocu
 from . import settings
 from .logger import logger as lg
 
-"""
-Create a abstract class for the services.
-"""
 class StatusService(QObject):
     socket = QTcpSocket()
     have_info = Signal(str)
@@ -70,19 +67,28 @@ class StatusService(QObject):
             self.data_received.emit(QJsonDocument.fromJson(data))
             lg.log(data)
 
-class StreamServiceStruct(QObject):
-    def __init__(self):
-        self.signals = StreamServiceSignals()
-        self.service = StreamService()
-
-        self.signals.send.connect(self.service.send)
-
-class StreamServiceSignals(QObject):
-    send = Signal(list)
-
 class StreamService(QThread):
+    class AskPairSignals(QObject):
+        rece_part_screen = Signal(str, int, int, QByteArray)
+
+    class NeedPairSignals(QObject):
+        send = Signal(list)
+        send_part_screen = Signal(str, str, int, int, QByteArray)
+
     socket = QUdpSocket()
+    connect_host = Signal(str, int)
+    add_ask_pair = Signal(str)
+    add_need_pair = Signal(str)
     def run(self):
+        self.socket.readyRead.connect(self.onReadyRead)
+        self.data_received.connect(self.Process)
+        self.ask_signals_pair = {}
+        self.need_signals_pair = {}
+
+        self.connect_host.connect(self.ConnectHost)
+        self.add_ask_pair.connect(self.AddAskPair)
+        self.add_need_pair.connect(self.AddNeedPair)
+
         self.exec()
 
     @Slot(str, int)
@@ -101,29 +107,98 @@ class StreamService(QThread):
         
         return False
     
+    data_received = Signal(QByteArray)
+    def onReadyRead(self):
+        if self.socket.bytesAvailable() > 0:
+            data = self.socket.readAll().data()
+            self.data_received.emit(data)
+            lg.log(data)
+
+    @Slot(QByteArray)
+    def Process(self, data: QByteArray):
+        _len = len(data)
+
+        try:
+            id = ""
+            i = 0
+            while data[i] != b';' and i < _len:
+                id += chr(data[i])
+                i += 1
+            i += 1
+
+            _type = ""
+            while data[i] != b';' and i < _len:
+                _type += chr(data[i])
+                i += 1
+            i += 1
+
+            if _type == "screen":
+                seq_id = ""
+                while data[i] != b';' and i < _len:
+                    seq_id += chr(data[i])
+                    i += 1
+                i += 1
+
+                time_stamp = ""
+                while data[i] != b';' and i < _len:
+                    time_stamp += chr(data[i])
+                    i += 1
+                time_stamp = int(time_stamp)
+                i += 1
+
+                part_num = ""
+                while data[i] != b';' and i < _len:
+                    part_num += chr(data[i])
+                    i += 1
+                part_num = int(part_num)
+                i += 1
+
+                pixmap_size = int.from_bytes(data[i:i+2], 'big')
+                i += 2
+
+                pixmap = data[i:i+pixmap_size]
+                self.ask_signals_pair[id].rece_part_screen.emit(seq_id, time_stamp, part_num, pixmap)
+        except Exception as e:
+            lg.log(e)
+
+    ask_signals_prepared = Signal(str, AskPairSignals)
+    def AddAskPair(self, id: str):
+        self.ask_signals_pair[id] = StreamService.AskPairSignals()
+        self.ask_signals_prepared.emit(id, self.ask_signals_pair[id])
+        
+    need_signals_prepared = Signal(str, NeedPairSignals)
+    def AddNeedPair(self, id: str):
+        self.need_signals_pair[id] = StreamService.NeedPairSignals()
+        self.need_signals_pair[id].send_part_screen.connect(self.sendScreenShot)
+        self.need_signals_prepared.emit(id, self.need_signals_pair[id])
+
     @Slot(str, QByteArray)
-    def sendScreenShot(self, id: str, data: QByteArray) -> bool:
-        pass
+    def sendScreenShot(self, id: str, seq_id: str, time_stamp: int, part_num: int, pixmap: QByteArray):
+        self.send([id, "screen", seq_id, time_stamp, part_num, len(pixmap).to_bytes(2, 'big') + pixmap])
 
-class CommandServicePairSignals(QObject):
-    rece_need_update = Signal(str, str)
-    rece_mouse_point = Signal(int, int)
-
-    send_part_screen = Signal(str, str, int, int, QByteArray)
-    send_mouse_point = Signal(int, int)
 
 class CommandService(QThread):
+    class AskPairSignals(QObject):
+        send_ask_update = Signal(str, str, str)
+        send_mouse_point = Signal(str, int, int)
+
+    class NeedPairSignals(QObject):
+        rece_need_update = Signal(str, str)
+        rece_mouse_point = Signal(int, int)
+
     socket = QTcpSocket()
     connect_host = Signal(str, int)
     add_ask_pair = Signal(str)
+    add_need_pair = Signal(str)
     def run(self):
         self.socket.readyRead.connect(self.onReadyRead)
         self.data_received.connect(self.Process)
         self.ask_signals_pair = {}
         self.need_signals_pair = {}
 
-        self.connect_host.connect(self.service.ConnectHost)
-        self.add_ask_pair.connect(self.service.AddAskPair)
+        self.connect_host.connect(self.ConnectHost)
+        self.add_ask_pair.connect(self.AddAskPair)
+        self.add_need_pair.connect(self.AddNeedPair)
 
         self.exec()
 
@@ -158,12 +233,22 @@ class CommandService(QThread):
         elif _type == "MouseEvent":
             pass
 
-    ask_signals_prepared = Signal(str, CommandServicePairSignals)
+    @Slot(str, str)
+    def sendMousePoint(self, id: str, mx: int, my: int):
+        self.send(QJsonDocument({"type": "MousePoint", "id": id, "mx": mx, "my": my}))
+
+    @Slot(str, str, str)
+    def sendAskUpdate(self, id: str, key: str, value: str):
+        self.send(QJsonDocument({"type": "AskUpdate", "id": id, "key": key, "value": value}))
+
+    ask_signals_prepared = Signal(str, AskPairSignals)
     def AddAskPair(self, id: str):
-        self.ask_signals_pair[id] = CommandServicePairSignals()
+        self.ask_signals_pair[id] = CommandService.AskPairSignals()
+        self.ask_signals_pair[id].send_ask_update.connect(self.sendAskUpdate)
+        self.ask_signals_pair[id].send_mouse_point.connect(self.sendMousePoint)
         self.ask_signals_prepared.emit(id, self.ask_signals_pair[id])
         
-    need_signals_prepared = Signal(str, CommandServicePairSignals)
+    need_signals_prepared = Signal(str, NeedPairSignals)
     def AddNeedPair(self, id: str):
-        self.need_signals_pair[id] = CommandServicePairSignals()
+        self.need_signals_pair[id] = CommandService.NeedPairSignals()
         self.need_signals_prepared.emit(id, self.need_signals_pair[id])

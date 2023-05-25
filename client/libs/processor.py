@@ -26,27 +26,30 @@ class StreamProcessor(QObject):
     def AddAskPair(self, id: str, addr: str, port: int, management: panel.AskManagement):
         sl = ServerLocation(addr, port)
         if(sl not in self.ask_stream_service):
-            self.ask_stream_service[sl] = service.StreamServiceStruct()
-            self.ask_stream_service[sl].service.start()
+            self.ask_stream_service[sl] = service.StreamService()
+            self.ask_stream_service[sl].ask_signals_prepared.connect(self.ConnectAsk)
+            self.ask_stream_service[sl].start()
+            self.ask_stream_service[sl].connect_host.emit(sl.addr, sl.port)
 
         self.ask_stream_management[id] = management
-        self.AskConnect(self.ask_stream_service[sl].service, management)
+        self.ask_stream_service[sl].add_ask_pair.emit(id)
 
     def AddNeedPair(self, id: str, addr: str, port: int, management: panel.NeedManagement):
         sl = ServerLocation(addr, port)
         if(sl not in self.need_stream_service):
-            self.need_stream_service[sl] = service.StreamServiceStruct()
-            self.need_stream_service[sl].service.start()
+            self.need_stream_service[sl] = service.StreamService()
+            self.need_stream_service[sl].need_signals_prepared.connect(self.ConnectNeed)
+            self.need_stream_service[sl].start()
+            self.need_stream_service[sl].connect_host.emit(sl.addr, sl.port)
 
         self.need_stream_management[id] = management
-        self.NeedConnect(self.need_stream_service[sl].service, management)
+        self.need_stream_service[sl].add_need_pair.emit(id)
 
-    def AskConnect(self, id: str, signals: service.CommandServicePairSignals):
-        pass
+    def ConnectAsk(self, id: str, signals: service.StreamService.AskPairSignals):
+        signals.rece_part_screen.connect(self.ask_stream_management[id].setScreenPixmap)
 
-    def NeedConnect(self, id: str, signals: service.CommandServicePairSignals):
+    def ConnectNeed(self, id: str, signals: service.StreamService.NeedPairSignals):
         self.need_stream_management[id].send_part_screen = signals.send_part_screen
-        pass
 
 class CommandProcessor(QObject):
     def __init__(self, settings):
@@ -60,27 +63,32 @@ class CommandProcessor(QObject):
     def AddAskPair(self, id: str, addr: str, port: int, management: panel.AskManagement):
         sl = ServerLocation(addr, port)
         if(sl not in self.ask_command_service):
-            self.ask_command_service[sl] = service.CommandServiceStruct()
-            self.ask_command_service[sl].service.start()
+            self.ask_command_service[sl] = service.CommandService()
+            self.ask_command_service[sl].ask_signals_prepared.connect(self.ConnectAsk)
+            self.ask_command_service[sl].start()
             self.ask_command_service[sl].connect_host.emit(sl.addr, sl.port)
 
         self.ask_command_management[id] = management
-        self.ask_command_service[sl].signals.add_ask_pair.emit(id)
+        self.ask_command_service[sl].add_ask_pair.emit(id)
 
     def AddNeedPair(self, id: str, addr: str, port: int, management: panel.NeedManagement):
         sl = ServerLocation(addr, port)
         if(sl not in self.need_command_service):
-            self.need_command_service[sl] = service.CommandServiceStruct()
-            self.need_command_service[sl].service.start()
+            self.need_command_service[sl] = service.CommandService()
+            self.need_command_service[sl].need_signals_prepared.connect(self.ConnectNeed)
+            self.need_command_service[sl].start()
+            self.need_command_service[sl].connect_host.emit(sl.addr, sl.port)
 
         self.need_command_management[id] = management
+        self.need_command_service[sl].add_need_pair.emit(id)
 
-    def AskConnect(self, id: str, signals: service.CommandServicePairSignals):
-        pass
+    def ConnectAsk(self, id: str, signals: service.CommandService.AskPairSignals):
+        self.ask_command_management[id].send_mouse_point = signals.send_mouse_point
+        self.ask_command_management[id].update = signals.send_ask_update
 
-    def NeedConnect(self, id: str, signals: service.CommandServicePairSignals):
+    def ConnectNeed(self, id: str, signals: service.CommandService.NeedPairSignals):
         signals.rece_mouse_point.connect(self.need_command_management[id].MoveMouse)
-        pass
+        signals.rece_need_update.connect(self.need_command_management[id].NeedUpdate)
 
 class StatusProcessor(QObject):
     def __init__(self, settings, service):
@@ -115,6 +123,9 @@ class StatusProcessor(QObject):
             id = json_map["from"]
             self.ask_stream_pair[id] = {"ip": json_map["UDPip"], "port": json_map["UDPport"]}
             self.ask_command_pair[id] = {"ip": json_map["TCPip"], "port": json_map["TCPport"]}
+            management = panel.AskManagement(id, self.settings, id)
+            self.stream_processor.AddAskPair(id, json_map["UDPip"], json_map["UDPport"], management)
+            self.command_processor.AddAskPair(id, json_map["TCPip"], json_map["TCPport"], management)
             lg.log("{} accepted your connection request".format(id))
         elif status == "NeedConn":
             id = json_map["from"]
@@ -166,7 +177,11 @@ class StatusProcessor(QObject):
     need_connect = Signal(str)
     def ReturnNeedConnect(self, accept: bool, to: str, reason = ""):
         json_map = {"status": "NeedConn" + "Accept" if accept else "Refuse", "to": to}
-        if not accept:
+        if accept:
+            management = panel.NeedManagement(to, self.settings, to)
+            self.stream_processor.AddNeedPair(to, self.need_stream_pair[to]["ip"], self.need_stream_pair[to]["port"], management)
+            self.command_processor.AddNeedPair(to, self.need_command_pair[to]["ip"], self.need_command_pair[to]["port"], management)
+        else:
             json_map["reason"] = reason
             self.need_stream_pair.pop(to)
             self.need_command_pair.pop(to)

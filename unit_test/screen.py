@@ -30,7 +30,7 @@ class TestScreen(QMainWindow):
     mouseAction = Signal(QEvent.Type)
 
     def mouseMoveTest(self, event):
-        self.status_bar.showMessage(f"Mouse Moved: {event.x()}, {event.y()}")
+        self.status_bar.showMessage(f"Mouse Moved: {event.position().x()}, {event.position().y()}")
 
     def screenEventFilter(self, obj, event) -> bool:
         if event.type() == QEvent.Type.MouseMove:

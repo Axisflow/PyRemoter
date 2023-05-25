@@ -2,10 +2,14 @@ import json
 import secrets
 import socket
 import string
+import uuid
 import threading
 
 
 def client_handler(conn, addr):
+    print("-----------------------------------------")
+    print(repr(conn) + " " + repr(addr) + "\nhandler start")
+    print("-----------------------------------------")
     user_id = ''
     while True:
         #######################################################
@@ -21,12 +25,13 @@ def client_handler(conn, addr):
         #######################################################
         msgfromserver = conn.recv(plen)
         #######################################################
-        # bytes to string to json
+        # convert bytes to string to json
         #######################################################
         try:
             json_obj = json.loads(msgfromserver.decode('utf-8'))
         except json.decoder.JSONDecodeError:
             continue
+        print(repr(addr) + " " + str(json_obj))
         #######################################################
         # two field <type> or <status>
         #######################################################
@@ -98,17 +103,18 @@ def client_handler(conn, addr):
                     #######################################################
                     # generate random user_uuid
                     #######################################################
-                    alphabet = string.digits
-                    user_uuid = ''.join(secrets.choice(alphabet) for i in range(8))
+                    user_uuid = uuid.uuid4()
                     #######################################################
                     # mac -> uuid
                     #######################################################
+                    alphabet = string.digits
+                    user_uuid = ''.join(secrets.choice(alphabet) for _ in range(8))
                     dict2[mac_data] = str(user_uuid)
                     #######################################################
                     # generate random length of 8 password
                     #######################################################
                     alphabet = string.ascii_lowercase + string.digits
-                    password = ''.join(secrets.choice(alphabet) for i in range(8))
+                    password = ''.join(secrets.choice(alphabet) for _ in range(8))
                     #######################################################
                     # user_uuid -> [mac_data, conn, addr,password,permanent]
                     #                  0        1    2      3         4
@@ -144,13 +150,14 @@ def client_handler(conn, addr):
                 # from client data
                 #######################################################
                 user_uuid = json_obj['id']
+                j = {}
                 if user_uuid in dict1:
                     if dict1[user_uuid][4] is False:
                         #######################################################
                         # generate random length of 8 password
                         #######################################################
                         alphabet = string.ascii_lowercase + string.digits
-                        password = ''.join(secrets.choice(alphabet) for i in range(8))
+                        password = ''.join(secrets.choice(alphabet) for _ in range(8))
                         #######################################################
                         # reply message
                         #######################################################
@@ -239,17 +246,18 @@ def client_handler(conn, addr):
                 #               to:<ID number>[,
                 #               reason:<Why Refuse?>]} # 有可能被加入黑名單，或在詢問模式被拒絕了之類的
                 #######################################################
-                user = dict(zip(json_obj['to'],json_obj['pwd']))
+                user = dict(zip(json_obj['to'], json_obj['pwd']))
                 user_uuid = json_obj['id']
                 for key, value in user.items():
-                    if value == "":
-                        j = {'status': "NeedConn", 'from': user_uuid, 'directly': False, 'TCPip': localIP,
-                             'TCPport': localPort, 'UDPip': '', 'UDPport': ''}
-                    else:
-                        j = {'status': "NeedConn", 'from': user_uuid, 'directly': True, 'TCPip': localIP,
-                             'TCPport': localPort, 'UDPip': '', 'UDPport': ''}
-                    j = json.dumps(j).encode('utf-8')
-                    dict1[key][1].send(j)
+                    if key in dict1:
+                        if value == "":
+                            j = {'status': "NeedConn", 'from': user_uuid, 'directly': False, 'TCPip': localIP,
+                                 'TCPport': localPort, 'UDPip': '', 'UDPport': ''}
+                        else:
+                            j = {'status': "NeedConn", 'from': user_uuid, 'directly': True, 'TCPip': localIP,
+                                 'TCPport': localPort, 'UDPip': '', 'UDPport': ''}
+                        j = json.dumps(j).encode('utf-8')
+                        dict1[key][1].send(j)
             elif msg_type == 'NeedConnAccept':
                 another_user = json_obj['from']
                 j = {'status': "AskConnSuccess", 'from': another_user, 'TCPip': localIP,
@@ -325,23 +333,49 @@ def client_handler(conn, addr):
 
 
 if __name__ == '__main__':
+    #######################################################
+    # dict1: user_uuid -> [mac_data, conn, addr,password,permanent]
+    # dict2: mac -> user_uuid
+    # localIP: serverIP
+    # localPort: server run TCP_server on
+    #######################################################
     dict1 = dict()
     dict2 = dict()
     localIP = "127.0.0.1"
     localPort = 20001
-    # Create a tcp socket
+    #######################################################
+    # Create a TCP socket
+    #######################################################
     TCPServerSocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM)
+    #######################################################
     # Bind to address and ip
+    #######################################################
     TCPServerSocket.bind((localIP, localPort))
+    #######################################################
+    #
+    #######################################################
     TCPServerSocket.listen()
     print("TCP server up and listening")
+    #######################################################
     # Listen for incoming client
+    #######################################################
     try:
         while True:
+            #######################################################
+            # establish connection
+            #######################################################
             conn, addr = TCPServerSocket.accept()
+            #######################################################
+            # declare thread for a client
+            #######################################################
             thread = threading.Thread(target=client_handler, args=(conn, addr))
+            #######################################################
+            # start handle client event
+            #######################################################
             thread.start()
     finally:
-        # 关闭服务器套接字
+        #######################################################
+        # close all connection
+        #######################################################
         print("Closing server socket")
         TCPServerSocket.close()

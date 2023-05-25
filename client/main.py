@@ -4,7 +4,7 @@ from PySide6 import QtWidgets, QtCore
 from PySide6.QtCore import QCoreApplication, QFileInfo
 from PySide6.QtWidgets import QApplication
 
-from .libs import splash, ui, settings, logger, processor
+from libs import splash, ui, settings, logger, processor
 
 if __name__ == "__main__":
     QCoreApplication.setApplicationName("PyRemoter")

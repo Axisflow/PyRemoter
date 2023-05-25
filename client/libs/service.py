@@ -180,11 +180,11 @@ class StreamService(QThread):
 class CommandService(QThread):
     class AskPairSignals(QObject):
         send_ask_update = Signal(str, str, str)
-        send_mouse_point = Signal(str, int, int)
+        send_screen_event = Signal(str, dict)
 
     class NeedPairSignals(QObject):
         rece_need_update = Signal(str, str)
-        rece_mouse_point = Signal(int, int)
+        rece_screen_event = Signal(dict)
 
     socket = QTcpSocket()
     connect_host = Signal(str, int)
@@ -228,14 +228,14 @@ class CommandService(QThread):
         _type = json_map["type"]
         if _type == "NeedUpdate":
             self.need_signals_pair[json_map["from"]].rece_need_update.emit(json_map["key"], json_map["value"])
-        if _type == "MousePoint":
-            self.need_signals_pair[json_map["id"]].rece_mouse_point.emit(json_map["mx"], json_map["my"])
-        elif _type == "MouseEvent":
-            pass
+        if _type == "ScreenEvent":
+            self.need_signals_pair[json_map["id"]].rece_screen_event.emit(json_map)
 
-    @Slot(str, str)
-    def sendMousePoint(self, id: str, mx: int, my: int):
-        self.send(QJsonDocument({"type": "MousePoint", "id": id, "mx": mx, "my": my}))
+    @Slot(str, dict)
+    def sendScreenEvent(self, id: str, data: dict):
+        data["id"] = id
+        data["type"] = "ScreenEvent"
+        self.send(QJsonDocument(data))
 
     @Slot(str, str, str)
     def sendAskUpdate(self, id: str, key: str, value: str):
@@ -245,7 +245,7 @@ class CommandService(QThread):
     def AddAskPair(self, id: str):
         self.ask_signals_pair[id] = CommandService.AskPairSignals()
         self.ask_signals_pair[id].send_ask_update.connect(self.sendAskUpdate)
-        self.ask_signals_pair[id].send_mouse_point.connect(self.sendMousePoint)
+        self.ask_signals_pair[id].send_screen_event.connect(self.sendScreenEvent)
         self.ask_signals_prepared.emit(id, self.ask_signals_pair[id])
         
     need_signals_prepared = Signal(str, NeedPairSignals)

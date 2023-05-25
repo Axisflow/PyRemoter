@@ -355,10 +355,10 @@ class Entry(QtWidgets.QMainWindow):
         msgBox.setWindowTitle("A Friend Want to Connect You!")
         msgBox.setText("ID \"{}\" Connection Need".format(id))
         msgBox.setInformativeText("Do you want to accept?")
-        msgBox.setStandardButtons(QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
-        msgBox.setDefaultButton(QtWidgets.QMessageBox.No)
+        msgBox.setStandardButtons(QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No)
+        msgBox.setDefaultButton(QtWidgets.QMessageBox.StandardButton.Yes)
         ret = msgBox.exec()
-        if ret == QtWidgets.QMessageBox.Yes:
+        if ret == QtWidgets.QMessageBox.StandardButton.Yes:
             self.status_processer.ReturnNeedConnect(True, id)
         else:
             self.status_processer.ReturnNeedConnect(False, id, "Refused by user")

@@ -13,83 +13,6 @@ class ServerLocation:
     def __hash__(self):
         return hash((self.addr, self.port))
 
-class StreamProcessor(QObject):
-    def __init__(self, settings):
-        self.settings = settings
-        
-        self.ask_stream_service = {}
-        self.ask_stream_management = {}
-        self.need_stream_service = {}
-        self.need_stream_management = {}
-
-    
-    def AddAskPair(self, id: str, addr: str, port: int, management: panel.AskManagement):
-        sl = ServerLocation(addr, port)
-        if(sl not in self.ask_stream_service):
-            self.ask_stream_service[sl] = service.StreamService()
-            self.ask_stream_service[sl].ask_signals_prepared.connect(self.ConnectAsk)
-            self.ask_stream_service[sl].start()
-            self.ask_stream_service[sl].connect_host.emit(sl.addr, sl.port)
-
-        self.ask_stream_management[id] = management
-        self.ask_stream_service[sl].add_ask_pair.emit(id)
-
-    def AddNeedPair(self, id: str, addr: str, port: int, management: panel.NeedManagement):
-        sl = ServerLocation(addr, port)
-        if(sl not in self.need_stream_service):
-            self.need_stream_service[sl] = service.StreamService()
-            self.need_stream_service[sl].need_signals_prepared.connect(self.ConnectNeed)
-            self.need_stream_service[sl].start()
-            self.need_stream_service[sl].connect_host.emit(sl.addr, sl.port)
-
-        self.need_stream_management[id] = management
-        self.need_stream_service[sl].add_need_pair.emit(id)
-
-    def ConnectAsk(self, id: str, signals: service.StreamService.AskPairSignals):
-        signals.rece_part_screen.connect(self.ask_stream_management[id].setScreenPixmap)
-
-    def ConnectNeed(self, id: str, signals: service.StreamService.NeedPairSignals):
-        self.need_stream_management[id].send_part_screen = signals.send_part_screen
-
-class CommandProcessor(QObject):
-    def __init__(self, settings):
-        self.settings = settings
-
-        self.ask_command_service = {}
-        self.ask_command_management = {}
-        self.need_command_service = {}
-        self.need_command_management = {}
-
-    def AddAskPair(self, id: str, addr: str, port: int, management: panel.AskManagement):
-        sl = ServerLocation(addr, port)
-        if(sl not in self.ask_command_service):
-            self.ask_command_service[sl] = service.CommandService()
-            self.ask_command_service[sl].ask_signals_prepared.connect(self.ConnectAsk)
-            self.ask_command_service[sl].start()
-            self.ask_command_service[sl].connect_host.emit(sl.addr, sl.port)
-
-        self.ask_command_management[id] = management
-        self.ask_command_service[sl].add_ask_pair.emit(id)
-
-    def AddNeedPair(self, id: str, addr: str, port: int, management: panel.NeedManagement):
-        sl = ServerLocation(addr, port)
-        if(sl not in self.need_command_service):
-            self.need_command_service[sl] = service.CommandService()
-            self.need_command_service[sl].need_signals_prepared.connect(self.ConnectNeed)
-            self.need_command_service[sl].start()
-            self.need_command_service[sl].connect_host.emit(sl.addr, sl.port)
-
-        self.need_command_management[id] = management
-        self.need_command_service[sl].add_need_pair.emit(id)
-
-    def ConnectAsk(self, id: str, signals: service.CommandService.AskPairSignals):
-        self.ask_command_management[id].send_mouse_point = signals.send_mouse_point
-        self.ask_command_management[id].update = signals.send_ask_update
-
-    def ConnectNeed(self, id: str, signals: service.CommandService.NeedPairSignals):
-        signals.rece_mouse_point.connect(self.need_command_management[id].MoveMouse)
-        signals.rece_need_update.connect(self.need_command_management[id].NeedUpdate)
-
 class StatusProcessor(QObject):
     def __init__(self, settings, service):
         super().__init__()
@@ -201,3 +124,80 @@ class StatusProcessor(QObject):
                         if i.hardwareAddress() != "":
                             lg.log(i.hardwareAddress())
                             return i.hardwareAddress()
+
+class StreamProcessor(QObject):
+    def __init__(self, settings):
+        self.settings = settings
+        
+        self.ask_stream_service = {}
+        self.ask_stream_management = {}
+        self.need_stream_service = {}
+        self.need_stream_management = {}
+
+    
+    def AddAskPair(self, id: str, addr: str, port: int, management: panel.AskManagement):
+        sl = ServerLocation(addr, port)
+        if(sl not in self.ask_stream_service):
+            self.ask_stream_service[sl] = service.StreamService()
+            self.ask_stream_service[sl].ask_signals_prepared.connect(self.ConnectAsk)
+            self.ask_stream_service[sl].start()
+            self.ask_stream_service[sl].connect_host.emit(sl.addr, sl.port)
+
+        self.ask_stream_management[id] = management
+        self.ask_stream_service[sl].add_ask_pair.emit(id)
+
+    def AddNeedPair(self, id: str, addr: str, port: int, management: panel.NeedManagement):
+        sl = ServerLocation(addr, port)
+        if(sl not in self.need_stream_service):
+            self.need_stream_service[sl] = service.StreamService()
+            self.need_stream_service[sl].need_signals_prepared.connect(self.ConnectNeed)
+            self.need_stream_service[sl].start()
+            self.need_stream_service[sl].connect_host.emit(sl.addr, sl.port)
+
+        self.need_stream_management[id] = management
+        self.need_stream_service[sl].add_need_pair.emit(id)
+
+    def ConnectAsk(self, id: str, signals: service.StreamService.AskPairSignals):
+        signals.rece_part_screen.connect(self.ask_stream_management[id].setScreenPixmap)
+
+    def ConnectNeed(self, id: str, signals: service.StreamService.NeedPairSignals):
+        self.need_stream_management[id].send_part_screen = signals.send_part_screen
+
+class CommandProcessor(QObject):
+    def __init__(self, settings):
+        self.settings = settings
+
+        self.ask_command_service = {}
+        self.ask_command_management = {}
+        self.need_command_service = {}
+        self.need_command_management = {}
+
+    def AddAskPair(self, id: str, addr: str, port: int, management: panel.AskManagement):
+        sl = ServerLocation(addr, port)
+        if(sl not in self.ask_command_service):
+            self.ask_command_service[sl] = service.CommandService()
+            self.ask_command_service[sl].ask_signals_prepared.connect(self.ConnectAsk)
+            self.ask_command_service[sl].start()
+            self.ask_command_service[sl].connect_host.emit(sl.addr, sl.port)
+
+        self.ask_command_management[id] = management
+        self.ask_command_service[sl].add_ask_pair.emit(id)
+
+    def AddNeedPair(self, id: str, addr: str, port: int, management: panel.NeedManagement):
+        sl = ServerLocation(addr, port)
+        if(sl not in self.need_command_service):
+            self.need_command_service[sl] = service.CommandService()
+            self.need_command_service[sl].need_signals_prepared.connect(self.ConnectNeed)
+            self.need_command_service[sl].start()
+            self.need_command_service[sl].connect_host.emit(sl.addr, sl.port)
+
+        self.need_command_management[id] = management
+        self.need_command_service[sl].add_need_pair.emit(id)
+
+    def ConnectAsk(self, id: str, signals: service.CommandService.AskPairSignals):
+        self.ask_command_management[id].send_screen_event = signals.send_screen_event
+        self.ask_command_management[id].update = signals.send_ask_update
+
+    def ConnectNeed(self, id: str, signals: service.CommandService.NeedPairSignals):
+        signals.rece_screen_event.connect(self.need_command_management[id].ProcessScreenEvent)
+        signals.rece_need_update.connect(self.need_command_management[id].NeedUpdate)

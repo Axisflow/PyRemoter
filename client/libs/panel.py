@@ -114,7 +114,7 @@ class ControlWindow(QMainWindow):
 
     def screenEvent(self, event):
         if event.type() == QEvent.Type.MouseMove:
-            self.mouseMoved.emit(event.position().x(), event.position().y())
+            self.mouseMoved.emit(self.now_resolution[0] / self.combined_screen.width() * event.position().x(), self.now_resolution[1] / self.combined_screen.height() * event.position().y())
         else:
             self.mouseAction.emit(event.type())
         return True

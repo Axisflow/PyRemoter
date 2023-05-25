@@ -136,7 +136,11 @@ class StatusProcessor(QObject):
                 self.ReturnNeedConnect(True, id)
             else:
                 self.need_connect.emit(id)
-        elif status == "GetIDFail" or status == "LoginFail" or status == "RegisterFail" or status == "AskConnFail":
+        elif status == "LoginFail":
+            self.onError(json_map["reason"])
+            if json_map["reason"] == "id is not exist":
+                self.GetID()
+        elif status == "GetIDFail" or status == "RegisterFail" or status == "AskConnFail":
             self.onError(json_map["reason"])
         else:
             self.onError("Unknown status: " + status)

@@ -39,8 +39,8 @@ class StatusService(QObject):
         if(self.socket.state() == QTcpSocket.SocketState.ConnectedState):
             data = json.toJson(QJsonDocument.JsonFormat.Compact)
             length = len(data).to_bytes(4, byteorder="big")
-            self.socket.write(length + data)
             lg.log(length + data)
+            self.socket.write(length + data)
             return True
         else:
             return False
@@ -64,24 +64,38 @@ class StatusService(QObject):
     def onReadyRead(self):
         if self.socket.bytesAvailable() > 0:
             data = self.socket.readAll().data()
-            self.data_received.emit(QJsonDocument.fromJson(data))
             lg.log(data)
+            self.data_received.emit(QJsonDocument.fromJson(data))
 
-class StreamService(QThread):
+class StreamService(QObject):
+    class Thread(QThread):
+        def run(self):
+            self.exec()
+
     class AskPairSignals(QObject):
-        rece_part_screen = Signal(str, int, int, QByteArray)
+        rece_part_screen = Signal(str, int, int, int, int, QByteArray)
 
     class NeedPairSignals(QObject):
         send = Signal(list)
-        send_part_screen = Signal(str, str, int, int, QByteArray)
+        send_part_screen = Signal(str, str, int, int, int, int, QByteArray)
 
-    socket = QUdpSocket()
     connect_host = Signal(str, int)
     add_ask_pair = Signal(str)
     add_need_pair = Signal(str)
-    def run(self):
+    def __init__(self):
+        super().__init__()
+        self.self_thread = StreamService.Thread()
+        self.moveToThread(self.self_thread)
+        self.self_thread.start()
+
+        self.socket = QUdpSocket()
+        self.socket.moveToThread(self.self_thread)
+        self.socket.connected.connect(self.onConnected)
+        self.socket.disconnected.connect(self.onDisconnected)
+        self.socket.errorOccurred.connect(self.onError)
         self.socket.readyRead.connect(self.onReadyRead)
         self.data_received.connect(self.Process)
+
         self.ask_signals_pair = {}
         self.need_signals_pair = {}
 
@@ -89,11 +103,23 @@ class StreamService(QThread):
         self.add_ask_pair.connect(self.AddAskPair)
         self.add_need_pair.connect(self.AddNeedPair)
 
-        self.exec()
-
     @Slot(str, int)
     def ConnectHost(self, address: str, port: int):
+        lg.log("Connecting to " + address + ":" + str(port))
         self.socket.connectToHost(address, port)
+    
+    connected = Signal()
+    def onConnected(self):
+        self.connected.emit()
+
+    disconnected = Signal()
+    def onDisconnected(self):
+        self.disconnected.emit()
+
+    error_occurred = Signal(QTcpSocket.SocketError)
+    def onError(self, error: QTcpSocket.SocketError):
+        lg.log("Error occurred: " + str(error))
+        self.error_occurred.emit(error)
 
     @Slot(list)
     def send(self, array: list) -> bool:
@@ -101,8 +127,8 @@ class StreamService(QThread):
             # add a ';' to the end of every element in the array and join them together
             # convert the string to bytes and pad it to 65500 bytes
             data = ";".join([str(i) for i in array]).encode("utf-8").ljust(65500, b'\x00')
-            self.socket.write(data)
             lg.log(data)
+            self.socket.write(data)
             return True
         
         return False
@@ -111,8 +137,8 @@ class StreamService(QThread):
     def onReadyRead(self):
         if self.socket.bytesAvailable() > 0:
             data = self.socket.readAll().data()
-            self.data_received.emit(data)
             lg.log(data)
+            self.data_received.emit(data)
 
     @Slot(QByteArray)
     def Process(self, data: QByteArray):
@@ -153,11 +179,25 @@ class StreamService(QThread):
                 part_num = int(part_num)
                 i += 1
 
+                width = ""
+                while data[i] != b';' and i < _len:
+                    width += chr(data[i])
+                    i += 1
+                width = int(width)
+                i += 1
+
+                height = ""
+                while data[i] != b';' and i < _len:
+                    height += chr(data[i])
+                    i += 1
+                height = int(height)
+                i += 1
+
                 pixmap_size = int.from_bytes(data[i:i+2], 'big')
                 i += 2
 
                 pixmap = data[i:i+pixmap_size]
-                self.ask_signals_pair[id].rece_part_screen.emit(seq_id, time_stamp, part_num, pixmap)
+                self.ask_signals_pair[id].rece_part_screen.emit(seq_id, time_stamp, part_num, width, height, pixmap)
         except Exception as e:
             lg.log(e)
 
@@ -173,26 +213,41 @@ class StreamService(QThread):
         self.need_signals_prepared.emit(id, self.need_signals_pair[id])
 
     @Slot(str, QByteArray)
-    def sendScreenShot(self, id: str, seq_id: str, time_stamp: int, part_num: int, pixmap: QByteArray):
-        self.send([id, "screen", seq_id, time_stamp, part_num, len(pixmap).to_bytes(2, 'big') + pixmap])
+    def sendScreenShot(self, id: str, seq_id: str, time_stamp: int, part_num: int, width: int, height: int, pixmap: QByteArray):
+        self.send([id, "screen", seq_id, time_stamp, part_num, width, height, len(pixmap).to_bytes(2, 'big') + pixmap])
 
+class CommandService(QObject):
+    class Thread(QThread):
+        def run(self):
+            self.exec()
 
-class CommandService(QThread):
     class AskPairSignals(QObject):
+        rece_need_inform = Signal(str, str)
         send_ask_update = Signal(str, str, str)
         send_screen_event = Signal(str, dict)
 
     class NeedPairSignals(QObject):
+        send_ask_inform = Signal(str, str, str)
         rece_need_update = Signal(str, str)
         rece_screen_event = Signal(dict)
 
-    socket = QTcpSocket()
     connect_host = Signal(str, int)
     add_ask_pair = Signal(str)
     add_need_pair = Signal(str)
-    def run(self):
+    def __init__(self):
+        super().__init__()
+        self.self_thread = CommandService.Thread()
+        self.moveToThread(self.self_thread)
+        self.self_thread.start()
+
+        self.socket = QTcpSocket()
+        self.socket.moveToThread(self.self_thread)
+        self.socket.connected.connect(self.onConnected)
+        self.socket.disconnected.connect(self.onDisconnected)
+        self.socket.errorOccurred.connect(self.onError)
         self.socket.readyRead.connect(self.onReadyRead)
         self.data_received.connect(self.Process)
+
         self.ask_signals_pair = {}
         self.need_signals_pair = {}
 
@@ -200,18 +255,30 @@ class CommandService(QThread):
         self.add_ask_pair.connect(self.AddAskPair)
         self.add_need_pair.connect(self.AddNeedPair)
 
-        self.exec()
-
     @Slot(str, int)
     def ConnectHost(self, address: str, port: int):
+        lg.log("Connecting to " + address + ":" + str(port))
         self.socket.connectToHost(address, port)
+    
+    connected = Signal()
+    def onConnected(self):
+        self.connected.emit()
+
+    disconnected = Signal()
+    def onDisconnected(self):
+        self.disconnected.emit()
+
+    error_occurred = Signal(QTcpSocket.SocketError)
+    def onError(self, error: QTcpSocket.SocketError):
+        lg.log("Error occurred: " + str(error))
+        self.error_occurred.emit(error)
 
     def send(self, json: QJsonDocument) -> bool:
         if(self.socket.state() == QTcpSocket.SocketState.ConnectedState):
             data = json.toJson(QJsonDocument.JsonFormat.Compact)
             length = len(data).to_bytes(4, byteorder="big")
-            self.socket.write(length + data)
             lg.log(length + data)
+            self.socket.write(length + data)
             return True
         else:
             return False
@@ -220,26 +287,32 @@ class CommandService(QThread):
     def onReadyRead(self):
         if self.socket.bytesAvailable() > 0:
             data = self.socket.readAll().data()
-            self.data_received.emit(QJsonDocument.fromJson(data))
             lg.log(data)
+            self.data_received.emit(QJsonDocument.fromJson(data))
 
     def Process(self, json: QJsonDocument):
         json_map = json.toVariant()
         _type = json_map["type"]
-        if _type == "NeedUpdate":
+        if _type == "NeedInform":
+            self.ask_signals_pair[json_map["from"]].rece_need_inform.emit(json_map["key"], json_map["value"])
+        elif _type == "NeedUpdate":
             self.need_signals_pair[json_map["from"]].rece_need_update.emit(json_map["key"], json_map["value"])
-        if _type == "ScreenEvent":
-            self.need_signals_pair[json_map["id"]].rece_screen_event.emit(json_map)
+        elif _type == "ScreenEvent":
+            self.need_signals_pair[json_map["from"]].rece_screen_event.emit(json_map)
 
     @Slot(str, dict)
     def sendScreenEvent(self, id: str, data: dict):
-        data["id"] = id
+        data["to"] = id
         data["type"] = "ScreenEvent"
         self.send(QJsonDocument(data))
 
     @Slot(str, str, str)
     def sendAskUpdate(self, id: str, key: str, value: str):
-        self.send(QJsonDocument({"type": "AskUpdate", "id": id, "key": key, "value": value}))
+        self.send(QJsonDocument({"type": "AskUpdate", "to": id, "key": key, "value": value}))
+
+    @Slot(str, str, str)
+    def sendAskInform(self, id: str, key: str, value: str):
+        self.send(QJsonDocument({"type": "AskInform", "to": id, "key": key, "value": value}))
 
     ask_signals_prepared = Signal(str, AskPairSignals)
     def AddAskPair(self, id: str):
@@ -251,4 +324,5 @@ class CommandService(QThread):
     need_signals_prepared = Signal(str, NeedPairSignals)
     def AddNeedPair(self, id: str):
         self.need_signals_pair[id] = CommandService.NeedPairSignals()
+        self.need_signals_pair[id].send_ask_inform.connect(self.sendAskInform)
         self.need_signals_prepared.emit(id, self.need_signals_pair[id])

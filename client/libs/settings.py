@@ -50,6 +50,9 @@ class Settings:
     def getCWD(self):
         return self.cwd
     
+    def getDefaultTerminal(self):
+        return "cmd.exe"
+    
     def getLogo(self, size : int) -> QPixmap:
         return QPixmap(self.cwd + "/images/remoter.png").scaled(size, size, Qt.AspectRatioMode.KeepAspectRatioByExpanding)
     

@@ -33,23 +33,24 @@ class StatusProcessor(QObject):
         json_map = json.toVariant()
         status = json_map["status"]
         if status == "GetIDSuccess":
-            self.settings.setID(json_map["id"])
-            self.settings.setPassword(json_map["pwd"])
             lg.log("ID: " + json_map["id"])
             lg.log("Password: " + json_map["pwd"])
-        elif status == "LoginSuccess":
+            self.settings.setID(json_map["id"])
             self.settings.setPassword(json_map["pwd"])
+        elif status == "LoginSuccess":
             lg.log("New Password: " + json_map["pwd"])
+            self.settings.setPassword(json_map["pwd"])
         elif status == "RegisterSuccess":
             lg.log("Register Success")
         elif status == "AskConnSuccess":
             id = json_map["from"]
+            lg.log("{} accepted your connection request".format(id))
             self.ask_stream_pair[id] = {"ip": json_map["UDPip"], "port": json_map["UDPport"]}
             self.ask_command_pair[id] = {"ip": json_map["TCPip"], "port": json_map["TCPport"]}
-            management = panel.AskManagement(id, self.settings, id)
+            management = panel.AskManagement(self.settings, id)
             self.stream_processor.AddAskPair(id, json_map["UDPip"], json_map["UDPport"], management)
             self.command_processor.AddAskPair(id, json_map["TCPip"], json_map["TCPport"], management)
-            lg.log("{} accepted your connection request".format(id))
+            management.start.emit()
         elif status == "NeedConn":
             id = json_map["from"]
             directly = json_map["directly"]
@@ -105,7 +106,7 @@ class StatusProcessor(QObject):
     def ReturnNeedConnect(self, accept: bool, to: str, reason = ""):
         json_map = {"status": "NeedConn" + "Accept" if accept else "Refuse", "to": to}
         if accept:
-            management = panel.NeedManagement(to, self.settings, to)
+            management = panel.NeedManagement(self.settings, to)
             self.stream_processor.AddNeedPair(to, self.need_stream_pair[to]["ip"], self.need_stream_pair[to]["port"], management)
             self.command_processor.AddNeedPair(to, self.need_command_pair[to]["ip"], self.need_command_pair[to]["port"], management)
         else:
@@ -136,31 +137,33 @@ class StreamProcessor(QObject):
 
     
     def AddAskPair(self, id: str, addr: str, port: int, management: panel.AskManagement):
+        lg.log("Add ask pair: " + id + " " + addr + " " + str(port))
         sl = ServerLocation(addr, port)
         if(sl not in self.ask_stream_service):
             self.ask_stream_service[sl] = service.StreamService()
             self.ask_stream_service[sl].ask_signals_prepared.connect(self.ConnectAsk)
-            self.ask_stream_service[sl].start()
             self.ask_stream_service[sl].connect_host.emit(sl.addr, sl.port)
 
         self.ask_stream_management[id] = management
         self.ask_stream_service[sl].add_ask_pair.emit(id)
 
     def AddNeedPair(self, id: str, addr: str, port: int, management: panel.NeedManagement):
+        lg.log("Add need pair: " + id + " " + addr + " " + str(port))
         sl = ServerLocation(addr, port)
         if(sl not in self.need_stream_service):
             self.need_stream_service[sl] = service.StreamService()
             self.need_stream_service[sl].need_signals_prepared.connect(self.ConnectNeed)
-            self.need_stream_service[sl].start()
             self.need_stream_service[sl].connect_host.emit(sl.addr, sl.port)
 
         self.need_stream_management[id] = management
         self.need_stream_service[sl].add_need_pair.emit(id)
 
     def ConnectAsk(self, id: str, signals: service.StreamService.AskPairSignals):
+        lg.log("Connect ask: " + id)
         signals.rece_part_screen.connect(self.ask_stream_management[id].setScreenPixmap)
 
     def ConnectNeed(self, id: str, signals: service.StreamService.NeedPairSignals):
+        lg.log("Connect need: " + id)
         self.need_stream_management[id].send_part_screen = signals.send_part_screen
 
 class CommandProcessor(QObject):
@@ -173,31 +176,35 @@ class CommandProcessor(QObject):
         self.need_command_management = {}
 
     def AddAskPair(self, id: str, addr: str, port: int, management: panel.AskManagement):
+        lg.log("Add ask pair: " + id + " " + addr + " " + str(port))
         sl = ServerLocation(addr, port)
         if(sl not in self.ask_command_service):
             self.ask_command_service[sl] = service.CommandService()
             self.ask_command_service[sl].ask_signals_prepared.connect(self.ConnectAsk)
-            self.ask_command_service[sl].start()
             self.ask_command_service[sl].connect_host.emit(sl.addr, sl.port)
 
         self.ask_command_management[id] = management
         self.ask_command_service[sl].add_ask_pair.emit(id)
 
     def AddNeedPair(self, id: str, addr: str, port: int, management: panel.NeedManagement):
+        lg.log("Add need pair: " + id + " " + addr + " " + str(port))
         sl = ServerLocation(addr, port)
         if(sl not in self.need_command_service):
             self.need_command_service[sl] = service.CommandService()
             self.need_command_service[sl].need_signals_prepared.connect(self.ConnectNeed)
-            self.need_command_service[sl].start()
             self.need_command_service[sl].connect_host.emit(sl.addr, sl.port)
 
         self.need_command_management[id] = management
         self.need_command_service[sl].add_need_pair.emit(id)
 
     def ConnectAsk(self, id: str, signals: service.CommandService.AskPairSignals):
-        self.ask_command_management[id].send_screen_event = signals.send_screen_event
+        lg.log("Connect ask: " + id)
+        signals.rece_need_inform.connect(self.ask_command_management[id].NeedInform)
         self.ask_command_management[id].update = signals.send_ask_update
+        self.ask_command_management[id].send_screen_event = signals.send_screen_event
 
     def ConnectNeed(self, id: str, signals: service.CommandService.NeedPairSignals):
-        signals.rece_screen_event.connect(self.need_command_management[id].ProcessScreenEvent)
+        lg.log("Connect need: " + id)
+        self.need_command_management[id].inform = signals.send_ask_inform
         signals.rece_need_update.connect(self.need_command_management[id].NeedUpdate)
+        signals.rece_screen_event.connect(self.need_command_management[id].ProcessScreenEvent)

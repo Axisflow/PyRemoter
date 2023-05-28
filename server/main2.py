@@ -56,9 +56,9 @@ if __name__ == '__main__':
     # localIP: serverIP
     # localPort: server run TCP_server on
     #######################################################
-    DB_NAME = "pyremote"
-    DB_USER = "asddzxcc1856"
-    DB_PASS = "asddzxcc1857"
+    DB_NAME = ""
+    DB_USER = ""
+    DB_PASS = ""
     DB_HOST = "127.0.0.1"
     DB_PORT = "3306"
     
@@ -70,7 +70,7 @@ if __name__ == '__main__':
                                 port=DB_PORT)
         print("Database connected successfully")
         cur = conn.cursor()
-        localIP = "127.0.0.1"
+        localIP = "192.168.152.1"
         localUDPPort = 20002
         #######################################################
         # Create a TCP socket

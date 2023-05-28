@@ -20,7 +20,6 @@ def client_handler(conn, addr):
     try:
         
         while True:
-            conn.settimeout(5)
             #######################################################
             # receive user data length from socket
             #######################################################
@@ -293,19 +292,19 @@ def client_handler(conn, addr):
                                 j = {'status': "NeedConn", 'from': user_uuid, 'directly': True, 'TCPip': localIP,
                                     'TCPport': localTCPPort, 'UDPip': localIP, 'UDPport': localUDPPort}
                             j = json.dumps(j).encode('utf-8')
-                            client_info[key][1].send(j)
+                            dict0[key].send(j)
                 elif msg_type == 'NeedConnAccept':
-                    another_user = json_obj['from']
-                    j = {'status': "AskConnSuccess", 'from': another_user, 'TCPip': localIP,
+                    another_user = json_obj['to']
+                    j = {'status': "AskConnSuccess", 'from': user_id, 'TCPip': localIP,
                         'TCPport': localTCPPort, 'UDPip': localIP, 'UDPport': localUDPPort}
                     j = json.dumps(j).encode('utf-8')
-                    dict0[user_id].send(j)
+                    dict0[another_user].send(j)
                 elif msg_type == 'NeedConnRefuse':
-                    another_user = json_obj['from']
-                    j = {'status': "AskConnFail", 'reason': json_obj['reason'], 'from': another_user, 'TCPip': localIP,
+                    another_user = json_obj['to']
+                    j = {'status': "AskConnFail", 'reason': json_obj['reason'], 'from': user_id, 'TCPip': localIP,
                         'TCPport': localTCPPort, 'UDPip': localIP, 'UDPport': localUDPPort}
                     j = json.dumps(j).encode('utf-8')
-                    dict0[user_id].send(j)
+                    dict0[another_user].send(j)
                 elif msg_type == 'AskMonitor':
                     #######################################################
                     # client send: {status:"AskMonitor",
@@ -390,14 +389,15 @@ if __name__ == '__main__':
         client_mac = dict()
     print(client_info)
     print(client_mac)
-    localIP = "127.0.0.1"
+    try:
+        with open("database_info.json","r") as file:
+            DB_NAME,DB_USER,DB_PASS,DB_HOST = json.load(file).values()
+    except FileNotFoundError:
+        pass
+    localIP = "192.168.152.1"
     localUDPPort = 20002
     localTCPPort = 20001
-    DB_NAME = "pyremote"
-    DB_USER = "asddzxcc1856"
-    DB_PASS = "asddzxcc1857"
-    DB_HOST = "localhost"
-    
+    print(DB_HOST,DB_NAME)
     try:
         conndb = mysql.connector.connect(database=DB_NAME,
                                 user=DB_USER,

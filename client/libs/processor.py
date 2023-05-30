@@ -64,7 +64,13 @@ class StatusProcessor(QObject):
             self.onError(json_map["reason"])
             if json_map["reason"] == "id is not exist":
                 self.GetID()
-        elif status == "GetIDFail" or status == "RegisterFail" or status == "AskConnFail":
+        elif status == "GetIDFail":
+            self.onError(json_map["reason"])
+            if json_map["reason"] == "mac has one id":
+                self.settings.setID(json_map["id"])
+                self.settings.setPassword(json_map["pwd"])
+                self.Login()
+        elif status == "RegisterFail" or status == "AskConnFail":
             self.onError(json_map["reason"])
         else:
             self.onError("Unknown status: " + status)

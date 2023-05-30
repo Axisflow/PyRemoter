@@ -11,12 +11,7 @@ def client_handler(conn, addr):
     print("-----------------------------------------")
     print(repr(conn) + " " + repr(addr) + "\nhandler start")
     print("-----------------------------------------")
-    cur.execute("SELECT * FROM user_table WHERE IP = '" + addr[0] + "'")
-    rows = cur.fetchone()
-    if rows is not None:
-        user_id = rows[1]
-    else:
-        user_id = ''
+    user_id = ''
     try:
         
         while True:
@@ -111,12 +106,11 @@ def client_handler(conn, addr):
                         #######################################################
                         # generate random user_uuid
                         #######################################################
-                        user_uuid = uuid.uuid4()
-                        #######################################################
-                        # mac -> uuid
-                        #######################################################
                         alphabet = string.digits
                         user_uuid = ''.join(secrets.choice(alphabet) for _ in range(8))
+                        #######################################################
+                        # mac -> uuid
+                        ####################################################### 
                         client_mac[mac_data] = str(user_uuid)
                         with open("client_mac.json", "w") as file:
                             json.dump(client_mac, file)
@@ -135,7 +129,7 @@ def client_handler(conn, addr):
                         with open("client_info.json", "w") as file:
                             json.dump(client_info, file)
                         if user_id == '': 
-                            sql = "INSERT INTO user_table (IP,ID) VALUES ('" + addr[0] + "', '" + str(user_uuid) + "')"
+                            sql = "INSERT INTO user_table (IP,ID,MAC) VALUES ('" + str(addr[0]) + "," + str(addr[1]) + "', '" + str(user_uuid) + "', '" + mac_data + "')"
 
                             cur.execute(sql)
 
@@ -155,6 +149,14 @@ def client_handler(conn, addr):
                         j = {'status': "GetIDFail", 'id': client_mac[mac_data], 'pwd': client_info[client_mac[mac_data]][2],
                             'reason': 'mac has one id'}
                         user_id = client_mac[mac_data]
+                        cur.execute("SELECT * FROM user_table WHERE MAC = '" + mac_data + "'")
+                        rows = cur.fetchone()
+                        if rows is not None:
+                            user_id = rows[1]
+                            dict0[user_id] = conn
+                        else:
+                            user_id = ''
+                        print(user_id)
                     # send message
                     j = json.dumps(j).encode('utf-8')
                     conn.send(j)
@@ -174,7 +176,6 @@ def client_handler(conn, addr):
                     j = {}
                     
                     if user_uuid in client_info:
-                        dict0[user_id] = conn
                         if client_info[user_uuid][3] is False:
                             #######################################################
                             # generate random length of 8 password
@@ -185,12 +186,32 @@ def client_handler(conn, addr):
                             # reply message
                             #######################################################
                             j = {'status': "LoginSuccess", 'pwd': password}
+                            
+
                         elif client_info[user_uuid][3] is True:
                             #######################################################
                             # reply no new password
                             # reply message
                             #######################################################
                             j = {'status': "LoginSuccess"}
+                        
+                        cur.execute("SELECT * FROM user_table WHERE MAC = '" + client_info[user_uuid][0] + "'")
+                        rows = cur.fetchone()
+                        if rows is not None:
+                            user_id = rows[1]
+                            dict0[user_id] = conn
+                        else:
+                            user_id = ''
+                        print(user_id)
+                        dict0[user_id] = conn
+                        print(dict0)
+                        sql = "UPDATE user_table SET IP = '" + str(addr[0]) + "," + str(addr[1]) + "' WHERE MAC = '" + client_info[user_uuid][0] + "'"
+
+                        cur.execute(sql)
+
+                        conndb.commit()
+
+                        print(cur.rowcount, "record(s) affected")
                     else:
                         #######################################################
                         # Fail
@@ -234,7 +255,7 @@ def client_handler(conn, addr):
                         with open("client_info.json", "w") as file:
                             json.dump(client_info, file)
                         user_id = str(user_uuid)
-                        sql = "UPDATE user_table SET ID = '" + user_id + "' WHERE address = '" + addr[0] + "'"
+                        sql = "UPDATE user_table SET ID = '" + user_id + "' WHERE MAC = '" + client_info[user_uuid][0] + "'"
 
                         cur.execute(sql)
 
@@ -283,8 +304,9 @@ def client_handler(conn, addr):
                     #######################################################
                     user = dict(zip(json_obj['to'], json_obj['pwd']))
                     user_uuid = user_id
+                    print(dict0)
                     for key, value in user.items():
-                        if key in client_info:
+                        if key in client_info and key in dict0:
                             if value == "":
                                 j = {'status': "NeedConn", 'from': user_uuid, 'directly': False, 'TCPip': localIP,
                                     'TCPport': localTCPPort, 'UDPip': localIP, 'UDPport': localUDPPort}
@@ -363,6 +385,19 @@ def client_handler(conn, addr):
                     dict0[another_user].send(msgfromserver)
                     conn.close()
                     break
+                elif msg_type == 'AskUpdate':
+                    ## 9-1 (2)控制端請求更新狀態
+                    #    client send: {status:"AskUpdate", to:<ID number>, key:<Anything>, value:<Anything>}
+
+                    ## 9-2 (2)被控端接收狀態更新
+                    #    client rece: {status:"NeedUpdate", from:<ID number>, key:<Anything>, value:<Anything>}
+                    another_user = json_obj['to']
+                    #######################################################
+                    # close connection
+                    #######################################################
+                    j = {'status': "NeedUpdate", 'from': user_id, 'key': json_obj['key'], 'value': json_obj['value']}
+                    j = json.dumps(j).encode('utf-8')
+                    dict0[another_user].send(j)
     except socket.timeout:
         return
     return
@@ -394,10 +429,11 @@ if __name__ == '__main__':
             DB_NAME,DB_USER,DB_PASS,DB_HOST = json.load(file).values()
     except FileNotFoundError:
         pass
-    localIP = "192.168.152.1"
-    localUDPPort = 20002
-    localTCPPort = 20001
-    print(DB_HOST,DB_NAME)
+    try:
+        with open("serverIP.json","r") as file:
+            localIP,localUDPPort,localTCPPort = json.load(file).values()
+    except FileNotFoundError:
+        pass
     try:
         conndb = mysql.connector.connect(database=DB_NAME,
                                 user=DB_USER,

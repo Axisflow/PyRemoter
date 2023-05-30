@@ -70,24 +70,30 @@
 	client rece: {status:"NeedMonitor", from:<ID number>, question:<Anything>}  
 	client send: {status:<"NeedMonitorAccept/NeedMonitorRefuse">, to:<ID number>, question:<Anything>[, answer:<Anything>, reason:<Why Refuse?>]}
 
-## 9-1 (2)控制端請求更新狀態
-	client send: {status:"AskUpdate", to:<ID number>, key:<Anything>, value:<Anything>}
+## 9-1 (3)控制端請求更新狀態
+	client send: {type:"AskUpdate", to:<ID number>, key:<Anything>, value:<Anything>}
 
-## 9-2 (2)被控端接收狀態更新
-	client rece: {status:"NeedUpdate", from:<ID number>, key:<Anything>, value:<Anything>}
+## 9-2 (3)被控端接收狀態更新
+	client rece: {type:"NeedUpdate", from:<ID number>, key:<Anything>, value:<Anything>}
+
+## 10-1 (3)被控端請求更新狀態
+	client send: {type:"AskInform", to:<ID number>, key:<Anything>, value:<Anything>}
+
+## 10-2 (3)控制端接收狀態更新
+	client rece: {type:"NeedInform", from:<ID number>, key:<Anything>, value:<Anything>}
 
 ===============================================================================
 
-## 10-1 (1)被控端中斷控制，被控端應
+## 11-1 (1)被控端中斷控制，被控端應
 	client send: {status:"AbortNeedConn", to:<ID number>}
 
-## 10-2 (1)被控端中斷控制，控制端應
+## 11-2 (1)被控端中斷控制，控制端應
 	client rece: {status:"AbortNeedConn", from:<ID number>}
 
-## 11-1 (1)控制端中斷控制，控制端應
+## 12-1 (1)控制端中斷控制，控制端應
 	client send: {status:"AbortAskConn", to:<{ID1, ID2, ...}>}
 
-## 11-2 (1)控制端中斷控制，被控端應
+## 12-2 (1)控制端中斷控制，被控端應
 	client rece: {status:"AbortAskConn", from:<ID number>}
 
 ===============================================================================

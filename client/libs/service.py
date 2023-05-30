@@ -127,7 +127,8 @@ class StreamService(QObject):
             # add a ';' to the end of every element in the array and join them together
             # convert the string to bytes and pad it to 65500 bytes
             data = ";".join([str(i) for i in array]).encode("utf-8").ljust(65500, b'\x00')
-            lg.log(data)
+            # lg.log(data)
+            lg.log("StreamSocket is sending data! {}...".format(data[:100]))
             self.socket.write(data)
             return True
         

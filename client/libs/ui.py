@@ -107,16 +107,23 @@ class Scene_Control(QtWidgets.QWidget):
     def add_friend(self, name, id, pwd):
         item = QtWidgets.QListWidgetItem()
         item.setText(name)
+        item.setToolTip("ID: " + id + "\r\nPassword: " + pwd)
         data = {"id": id, "pwd": pwd}
-        item.setData(QtCore.Qt.UserRole, data)
+        item.setData(QtCore.Qt.ItemDataRole.UserRole, data)
         self.friend_list.addItem(item)
+
+    def remove_friend(self):
+        items = self.friend_list.selectedItems()
+        for item in items:
+            self.friend_list.removeItemWidget(item)
+            del item
 
     def onSelectionChanged(self):
         items = self.friend_list.selectedItems()
         self.id_list.clear()
         self.password_list.clear()
         for item in items:
-            data = item.data(QtCore.Qt.UserRole)
+            data = item.data(QtCore.Qt.ItemDataRole.UserRole)
             self.id_list.append(data["id"])
             self.password_list.append(data["pwd"])
 

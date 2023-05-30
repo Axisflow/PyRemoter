@@ -15,16 +15,10 @@ def client_handler(conn, addr):
         # receive user data length from socket
         #######################################################
         try:
-            conn.settimeout(5)
-            size_bytes = conn.recvfrom(4)
-            #######################################################
-            # length of packet
-            #######################################################
-            plen = int.from_bytes(size_bytes, byteorder='little')
             #######################################################
             # receive user data with plen size
             #######################################################
-            msgfromserver = conn.recv(plen)
+            msgfromserver,addr = conn.recvfrom(65500)
             #######################################################
             # convert bytes to string to json
             #######################################################
@@ -32,11 +26,12 @@ def client_handler(conn, addr):
             for i in msgfromserver:
                 if i != ';':
                     user_id += chr(i)
-            cur.execute("SELECT * FROM user_table WHERE IP = '" + addr + "'")
+            cur.execute("SELECT * FROM user_table WHERE IP = '" + str(addr[0]) + "," + str(addr[1])  + "'")
             rows = cur.fetchone()
             
             print('Data fetched successfully')
-            user_from = rows[1] + msgfromserver[len(user_id):]
+            user_from = rows[1].encode('utf-8') + msgfromserver[len(user_id):]
+            print(rows[1])
             #######################################################
             # two field <type> or <status>
             #######################################################
@@ -45,7 +40,11 @@ def client_handler(conn, addr):
             # 1.Grab screenshot and uuid1 and another_user as image data
             # 1.send to another client
             #######################################################
-            conn.send(user_from)
+            cur.execute("SELECT * FROM user_table WHERE IP = '" + user_id + "'")
+            rows = cur.fetchone()
+            
+            print('Data fetched successfully')
+            conn.sendto(user_from,tuple(rows[0].split(',')))  
         except OSError:
             break
     return
@@ -56,22 +55,24 @@ if __name__ == '__main__':
     # localIP: serverIP
     # localPort: server run TCP_server on
     #######################################################
-    DB_NAME = ""
-    DB_USER = ""
-    DB_PASS = ""
-    DB_HOST = "127.0.0.1"
-    DB_PORT = "3306"
-    
+    try:
+        with open("database_info.json","r") as file:
+            DB_NAME,DB_USER,DB_PASS,DB_HOST = json.load(file).values()
+    except FileNotFoundError:
+        pass
     try:
         conn = mysql.connector.connect(database=DB_NAME,
                                 user=DB_USER,
                                 password=DB_PASS,
-                                host=DB_HOST,
-                                port=DB_PORT)
+                                host=DB_HOST
+                                )
         print("Database connected successfully")
         cur = conn.cursor()
-        localIP = "192.168.152.1"
-        localUDPPort = 20002
+        try:
+            with open("serverIP.json","r") as file:
+                localIP,localUDPPort,localTCPPort = json.load(file).values()
+        except FileNotFoundError:
+            pass
         #######################################################
         # Create a TCP socket
         #######################################################
@@ -88,39 +89,25 @@ if __name__ == '__main__':
         # Listen for incoming client
         #######################################################
         try:
-            while True:
-                #######################################################
-                # receive user data length from socket
-                #######################################################
-                size_bytes, addr = UDPServerSocket.recvfrom(4)
-                #######################################################
-                # length of packet
-                #######################################################
-                plen = int.from_bytes(size_bytes, byteorder='little')
-                #######################################################
-                # receive user data with plen size
-                #######################################################
-                msgfromserver = UDPServerSocket.recv(plen)
-                #######################################################
-                # convert bytes to string to json
-                #######################################################
-                try:
-                    json_obj = json.loads(msgfromserver.decode('utf-8'))
-                except json.decoder.JSONDecodeError:
-                    continue
-                print(repr(addr) + " " + str(json_obj))
-                #######################################################
-                # declare thread for a client
-                #######################################################
-                thread = threading.Thread(target=client_handler, args=(UDPServerSocket, addr))
-                #######################################################
-                # start handle client event
-                #######################################################
-                thread.start()
-                #######################################################
-                # close handle client event
-                #######################################################
-                thread.join()
+            #######################################################
+             # receive user data with plen size
+             #######################################################
+            print("wait for msg")
+            msgfromserver,addr = UDPServerSocket.recvfrom(65500)
+            print(msgfromserver)
+            print(addr)
+            #######################################################
+            # declare thread for a client
+            #######################################################
+            thread = threading.Thread(target=client_handler, args=(UDPServerSocket, addr))
+            #######################################################
+            # start handle client event
+            #######################################################
+            thread.start()
+            #######################################################
+            # close handle client event
+            #######################################################
+            thread.join()
         finally:
             #######################################################
             # close all connection

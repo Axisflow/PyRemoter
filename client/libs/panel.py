@@ -230,7 +230,7 @@ class NeedManagement(QObject):
     @Slot(QByteArray)
     def processConsoleOutput(self, data: QByteArray):
         if self.inform != None:
-            self.inform.emit(self.id, "ConsoleOutput", data.data().decode("utf-8"))
+            self.inform.emit(self.id, "ConsoleOutput", data.data().decode("utf-8", "ignore"))
 
     @Slot(str, str)
     def NeedUpdate(self, key: str, value: str):

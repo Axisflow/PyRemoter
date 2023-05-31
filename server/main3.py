@@ -84,6 +84,15 @@ def client_handler(conn, addr):
                     # 1.send to another client
                     #######################################################
                     dict0[another_user].send(msgfromserver)
+                elif msg_type == 'AskUpdate':
+                    ## 9-1 (2)控制端請求更新狀態
+                    #    client send: {status:"AskUpdate", to:<ID number>, key:<Anything>, value:<Anything>}
+
+                    ## 9-2 (2)被控端接收狀態更新
+                    #    client rece: {status:"NeedUpdate", from:<ID number>, key:<Anything>, value:<Anything>}
+                    j = {'type': "NeedUpdate", 'from': user_id, 'key': json_obj['key'], 'value': json_obj['value']}
+                    j = json.dumps(j).encode('utf-8')
+                    dict0[another_user].send(j)
             else:
                 #######################################################
                 # interaction with one client
@@ -385,19 +394,6 @@ def client_handler(conn, addr):
                     dict0[another_user].send(msgfromserver)
                     conn.close()
                     break
-                elif msg_type == 'AskUpdate':
-                    ## 9-1 (2)控制端請求更新狀態
-                    #    client send: {status:"AskUpdate", to:<ID number>, key:<Anything>, value:<Anything>}
-
-                    ## 9-2 (2)被控端接收狀態更新
-                    #    client rece: {status:"NeedUpdate", from:<ID number>, key:<Anything>, value:<Anything>}
-                    another_user = json_obj['to']
-                    #######################################################
-                    # close connection
-                    #######################################################
-                    j = {'status': "NeedUpdate", 'from': user_id, 'key': json_obj['key'], 'value': json_obj['value']}
-                    j = json.dumps(j).encode('utf-8')
-                    dict0[another_user].send(j)
     except socket.timeout:
         return
     return

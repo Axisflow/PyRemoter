@@ -82,8 +82,10 @@ class StreamService(QObject):
     connect_host = Signal(str, int)
     add_ask_pair = Signal(str)
     add_need_pair = Signal(str)
-    def __init__(self):
+    def __init__(self, settings):
         super().__init__()
+        self.settings = settings
+
         self.self_thread = StreamService.Thread()
         self.moveToThread(self.self_thread)
         self.self_thread.start()
@@ -107,6 +109,7 @@ class StreamService(QObject):
     def ConnectHost(self, address: str, port: int):
         lg.log("Connecting to " + address + ":" + str(port))
         self.socket.connectToHost(address, port)
+        self.socket.bind(QHostAddress.SpecialAddress.Any, self.socket.localPort())
     
     connected = Signal()
     def onConnected(self):
@@ -137,8 +140,10 @@ class StreamService(QObject):
     data_received = Signal(QByteArray)
     def onReadyRead(self):
         if self.socket.bytesAvailable() > 0:
+            lg.log("bytes available: {}".format(self.socket.bytesAvailable()))
             data = self.socket.readAll().data()
-            lg.log(data)
+            # lg.log(data)
+            lg.log("StreamSocket received data! {}...".format(data[:100]))
             self.data_received.emit(data)
 
     @Slot(QByteArray)
@@ -206,12 +211,14 @@ class StreamService(QObject):
     def AddAskPair(self, id: str):
         self.ask_signals_pair[id] = StreamService.AskPairSignals()
         self.ask_signals_prepared.emit(id, self.ask_signals_pair[id])
+        self.send(["Hello", self.settings.getID()])
         
     need_signals_prepared = Signal(str, NeedPairSignals)
     def AddNeedPair(self, id: str):
         self.need_signals_pair[id] = StreamService.NeedPairSignals()
         self.need_signals_pair[id].send_part_screen.connect(self.sendScreenShot)
         self.need_signals_prepared.emit(id, self.need_signals_pair[id])
+        self.send(["Hello", self.settings.getID()])
 
     @Slot(str, QByteArray)
     def sendScreenShot(self, id: str, seq_id: str, time_stamp: int, part_num: int, width: int, height: int, pixmap: QByteArray):
@@ -235,8 +242,10 @@ class CommandService(QObject):
     connect_host = Signal(str, int)
     add_ask_pair = Signal(str)
     add_need_pair = Signal(str)
-    def __init__(self):
+    def __init__(self, settings):
         super().__init__()
+        self.settings = settings
+
         self.self_thread = CommandService.Thread()
         self.moveToThread(self.self_thread)
         self.self_thread.start()

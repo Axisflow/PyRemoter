@@ -146,7 +146,7 @@ class StreamProcessor(QObject):
         lg.log("Add ask pair: " + id + " " + addr + " " + str(port))
         sl = ServerLocation(addr, port)
         if(sl not in self.ask_stream_service):
-            self.ask_stream_service[sl] = service.StreamService()
+            self.ask_stream_service[sl] = service.StreamService(self.settings)
             self.ask_stream_service[sl].ask_signals_prepared.connect(self.ConnectAsk)
             self.ask_stream_service[sl].connect_host.emit(sl.addr, sl.port)
 
@@ -157,7 +157,7 @@ class StreamProcessor(QObject):
         lg.log("Add need pair: " + id + " " + addr + " " + str(port))
         sl = ServerLocation(addr, port)
         if(sl not in self.need_stream_service):
-            self.need_stream_service[sl] = service.StreamService()
+            self.need_stream_service[sl] = service.StreamService(self.settings)
             self.need_stream_service[sl].need_signals_prepared.connect(self.ConnectNeed)
             self.need_stream_service[sl].connect_host.emit(sl.addr, sl.port)
 
@@ -185,7 +185,7 @@ class CommandProcessor(QObject):
         lg.log("Add ask pair: " + id + " " + addr + " " + str(port))
         sl = ServerLocation(addr, port)
         if(sl not in self.ask_command_service):
-            self.ask_command_service[sl] = service.CommandService()
+            self.ask_command_service[sl] = service.CommandService(self.settings)
             self.ask_command_service[sl].ask_signals_prepared.connect(self.ConnectAsk)
             self.ask_command_service[sl].connect_host.emit(sl.addr, sl.port)
 
@@ -196,7 +196,7 @@ class CommandProcessor(QObject):
         lg.log("Add need pair: " + id + " " + addr + " " + str(port))
         sl = ServerLocation(addr, port)
         if(sl not in self.need_command_service):
-            self.need_command_service[sl] = service.CommandService()
+            self.need_command_service[sl] = service.CommandService(self.settings)
             self.need_command_service[sl].need_signals_prepared.connect(self.ConnectNeed)
             self.need_command_service[sl].connect_host.emit(sl.addr, sl.port)
 

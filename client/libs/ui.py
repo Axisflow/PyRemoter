@@ -57,6 +57,12 @@ class Scene_Control(QtWidgets.QWidget):
         add_friend_button.clicked.connect(self.msg_addfriend.show)
         button_layout.addWidget(add_friend_button)
 
+        # Create a button for removing friends
+        remove_friend_button = QtWidgets.QPushButton("Remove")
+        remove_friend_button.setMaximumWidth(50)
+        remove_friend_button.clicked.connect(self.remove_friend)
+        button_layout.addWidget(remove_friend_button)
+
         # Create a button for connecting to friends
         self.connect_friends_button = QtWidgets.QPushButton("Connect")
         self.connect_friends_button.setMaximumWidth(50)

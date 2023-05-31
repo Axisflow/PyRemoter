@@ -1,5 +1,5 @@
 from PySide6.QtCore import Qt, QObject, Signal, Slot, QThread, QTimer, QEvent, QByteArray, QBuffer, QIODevice, QRandomGenerator, QProcess, QSize
-from PySide6.QtGui import QScreen, QPixmap, QCursor, QResizeEvent, QDesktopServices
+from PySide6.QtGui import QScreen, QPixmap, QCursor, QResizeEvent, QDesktopServices, QImage
 from PySide6.QtWidgets import QMainWindow, QApplication, QWidget, QLabel, QStatusBar, QTextBrowser, QLineEdit, QGridLayout, QVBoxLayout
 from PySide6.QtMultimedia import QMediaRecorder
 import pyautogui
@@ -269,7 +269,7 @@ class NeedManagement(QObject):
         _bytes = QByteArray()
         _buffer = QBuffer(_bytes)
         _buffer.open(QIODevice.OpenModeFlag.WriteOnly)
-        pixmap.save(_buffer, "PNG")
+        pixmap.save(_buffer, "JPG")
         return _bytes
         
 
@@ -322,7 +322,7 @@ class ControlWindow(QMainWindow):
     @Slot(int, QByteArray)
     def setPixmap(self, idx, pixmap):
         if idx < len(self.splitted_screen):
-            self.splitted_screen[idx].setPixmap(pixmap)
+            self.splitted_screen[idx].setPixmap(ControlWindow.fromByteArray(pixmap))
 
     def changeResolution(self, resolution: QSize):
         if self.now_resolution != resolution:
@@ -389,6 +389,12 @@ class ControlWindow(QMainWindow):
         else:
             self.combined_screen.resize(self.central_widget.height() / height * width, self.central_widget.height())
         self.combined_screen.move(self.central_widget.rect().center() - self.combined_screen.rect().center())
+
+    @staticmethod
+    def fromByteArray(data: QByteArray) -> QPixmap:
+        p = QPixmap()
+        p.loadFromData(data, "JPG")
+        return p
 
 class ControlConsole(QMainWindow):
     append_output = Signal(str)
@@ -512,30 +518,30 @@ class AskManagement(QObject):
         lg.log("Screen pixmap size: " + str(width) + " " + str(height))
         if self.seq_id_deprecating == None:
             if time_stamp > self.screen_now_time_stamp:
-                self.window.changeResolution(width, height)
+                self.window.changeResolution(QSize(width, height))
                 self.screen_now_time_stamp = time_stamp
                 self.screen_now_part_num = part_num
                 self.window.setPixmap(part_num, pixmap)
             elif time_stamp == self.screen_now_time_stamp:
                 if part_num > self.screen_now_part_num:
-                    self.window.changeResolution(width, height)
+                    self.window.changeResolution(QSize(width, height))
                     self.screen_now_part_num = part_num
                     self.window.setPixmap(part_num, pixmap)
         else:
             if seq_id == self.seq_id_deprecating:
                 if time_stamp > self.screen_now_time_stamp:
-                    self.window.changeResolution(width, height)
+                    self.window.changeResolution(QSize(width, height))
                     self.screen_now_time_stamp = time_stamp
                     self.screen_now_part_num = part_num
                     self.window.setPixmap(part_num, pixmap)
                 elif time_stamp == self.screen_now_time_stamp:
                     if part_num > self.screen_now_part_num:
-                        self.window.changeResolution(width, height)
+                        self.window.changeResolution(QSize(width, height))
                         self.screen_now_part_num = part_num
                         self.window.setPixmap(part_num, pixmap)
             elif seq_id == self.seq_id_now:
                 self.deprecateSeqId()
-                self.window.changeResolution(width, height)
+                self.window.changeResolution(QSize(width, height))
                 self.screen_now_time_stamp = time_stamp
                 self.screen_now_part_num = part_num
                 self.window.setPixmap(part_num, pixmap)

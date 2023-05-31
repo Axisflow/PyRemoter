@@ -62,10 +62,11 @@ class StatusService(QObject):
 
     data_received = Signal(QJsonDocument)
     def onReadyRead(self):
-        if self.socket.bytesAvailable() > 0:
-            data = self.socket.readAll().data()
-            lg.log(data)
-            self.data_received.emit(QJsonDocument.fromJson(data))
+        length = int.from_bytes(self.socket.read(4), byteorder="big")
+        lg.log(length)
+        data = self.socket.read(length)
+        lg.log(data)
+        self.data_received.emit(QJsonDocument.fromJson(data))
 
 class StreamService(QObject):
     class Thread(QThread):
@@ -126,13 +127,12 @@ class StreamService(QObject):
 
     @Slot(list)
     def send(self, array: list) -> bool:
-        if(self.socket.state() == QUdpSocket.SocketState.ConnectedState):
+        if(self.socket.state() == QTcpSocket.SocketState.ConnectedState):
             # add a ';' to the end of every element in the array and join them together
             # convert the string to bytes and pad it to 65500 bytes
-            data = ";".join([str(i) for i in array]).encode("utf-8")
+            data = b";".join([StreamService.bytize(i) for i in array])
             length = len(data).to_bytes(4, byteorder="big")
-            # lg.log(data)
-            lg.log("StreamSocket is sending data! {}...".format(length + data[:100]))
+            lg.log("StreamSocket is sending data! {}...".format(length + data[:75]))
             self.socket.write(length + data)
             return True
         
@@ -141,73 +141,81 @@ class StreamService(QObject):
     data_received = Signal(QByteArray)
     def onReadyRead(self):
         if self.socket.bytesAvailable() > 0:
-            lg.log("bytes available: {}".format(self.socket.bytesAvailable()))
-            data = self.socket.readAll().data()
-            # lg.log(data)
-            lg.log("StreamSocket received data! {}...".format(data[:100]))
+            length = int.from_bytes(self.socket.read(4), byteorder="big")
+            lg.log(length)
+            data = self.socket.read(length)
+            lg.log("StreamSocket received data! {}...".format(data[:75]))
             self.data_received.emit(data)
 
     @Slot(QByteArray)
     def Process(self, data: QByteArray):
+        data = data.data()
         _len = len(data)
         sep = ord(b';')
 
-        try:
-            id = ""
-            i = 0
+    # try:
+        id = ""
+        i = 0
+        while data[i] != sep and i < _len:
+            id += chr(data[i])
+            i += 1
+        i += 1
+        print(id)
+
+        _type = ""
+        while data[i] != sep and i < _len:
+            _type += chr(data[i])
+            i += 1
+        i += 1
+        print(_type)
+
+        if _type == "screen":
+            seq_id = ""
             while data[i] != sep and i < _len:
-                id += chr(data[i])
+                seq_id += chr(data[i])
                 i += 1
             i += 1
+            print(seq_id)
 
-            _type = ""
+            time_stamp = ""
             while data[i] != sep and i < _len:
-                _type += chr(data[i])
+                time_stamp += chr(data[i])
                 i += 1
+            time_stamp = int(time_stamp)
             i += 1
+            print(time_stamp)
 
-            if _type == "screen":
-                seq_id = ""
-                while data[i] != sep and i < _len:
-                    seq_id += chr(data[i])
-                    i += 1
+            part_num = ""
+            while data[i] != sep and i < _len:
+                part_num += chr(data[i])
                 i += 1
+            part_num = int(part_num)
+            i += 1
+            print(part_num)
 
-                time_stamp = ""
-                while data[i] != sep and i < _len:
-                    time_stamp += chr(data[i])
-                    i += 1
-                time_stamp = int(time_stamp)
+            width = ""
+            while data[i] != sep and i < _len:
+                width += chr(data[i])
                 i += 1
+            width = int(width)
+            i += 1
+            print(width)
 
-                part_num = ""
-                while data[i] != sep and i < _len:
-                    part_num += chr(data[i])
-                    i += 1
-                part_num = int(part_num)
+            height = ""
+            while data[i] != sep and i < _len:
+                height += chr(data[i])
                 i += 1
+            height = int(height)
+            i += 1
+            print(height)
 
-                width = ""
-                while data[i] != sep and i < _len:
-                    width += chr(data[i])
-                    i += 1
-                width = int(width)
-                i += 1
+            pixmap_size = int.from_bytes(data[i:i+2], 'big')
+            i += 2
 
-                height = ""
-                while data[i] != sep and i < _len:
-                    height += chr(data[i])
-                    i += 1
-                height = int(height)
-                i += 1
-
-                pixmap_size = int.from_bytes(data[i:i+2], 'big')
-                i += 2
-
-                pixmap = data[i:i+pixmap_size]
-                self.ask_signals_pair[id].rece_part_screen.emit(seq_id, time_stamp, part_num, width, height, pixmap)
-        except Exception as e:
-            lg.log(e)
+            pixmap = data[i:i+pixmap_size]
+            self.ask_signals_pair[id].rece_part_screen.emit(seq_id, time_stamp, part_num, width, height, pixmap)
+    # except Exception as e:
+    #     lg.log(e)
 
     ask_signals_prepared = Signal(str, AskPairSignals)
     def AddAskPair(self, id: str):
@@ -223,6 +231,15 @@ class StreamService(QObject):
     @Slot(str, QByteArray)
     def sendScreenShot(self, id: str, seq_id: str, time_stamp: int, part_num: int, width: int, height: int, pixmap: QByteArray):
         self.send([id, "screen", seq_id, time_stamp, part_num, width, height, len(pixmap).to_bytes(2, 'big') + pixmap])
+
+    @staticmethod
+    def bytize(obj):
+        if isinstance(obj, bytes):
+            return obj
+        elif isinstance(obj, QByteArray):
+            return obj
+        else:
+            return str(obj).encode("utf-8")
 
 class CommandService(QObject):
     class Thread(QThread):
@@ -297,7 +314,9 @@ class CommandService(QObject):
     data_received = Signal(QJsonDocument)
     def onReadyRead(self):
         if self.socket.bytesAvailable() > 0:
-            data = self.socket.readAll().data()
+            length = int.from_bytes(self.socket.read(4), byteorder="big")
+            lg.log(length)
+            data = self.socket.read(length)
             lg.log(data)
             self.data_received.emit(QJsonDocument.fromJson(data))
 

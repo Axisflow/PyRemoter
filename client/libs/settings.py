@@ -1,4 +1,4 @@
-from PySide6.QtCore import Qt, QDir, QStandardPaths, QSettings
+from PySide6.QtCore import Qt, QDir, QStandardPaths, QSettings, QJsonDocument, QByteArray
 from PySide6.QtGui import QPixmap, QIcon
 
 from .logger import logger as lg
@@ -15,7 +15,7 @@ class Settings:
         settings.beginGroup("General")
         self.auto_locate_server = settings.value("auto_locate_server", True, bool)
         self.auto_login = settings.value("auto_login", True, bool)
-        self.friends_id = settings.value("friends_id", [], list)
+        self.friends_data = QJsonDocument.fromJson(settings.value("friends_data", b"{}", QByteArray)).toVariant()
         self.test_json = settings.value("test_json", '{}')
         settings.endGroup()
         settings.beginGroup("Account")
@@ -34,7 +34,7 @@ class Settings:
         settings.beginGroup("General")
         settings.setValue("auto_locate_server", self.auto_locate_server)
         settings.setValue("auto_login", self.auto_login)
-        settings.setValue("friends_id", self.friends_id)
+        settings.setValue("friends_data", QJsonDocument.fromVariant(self.friends_data).toJson(QJsonDocument.JsonFormat.Compact))
         settings.setValue("test_json", self.test_json)
         settings.endGroup()
         settings.beginGroup("Account")
@@ -92,6 +92,17 @@ class Settings:
     def getPassword(self):
         return self.password
     
+    def getFriendList(self) -> list[tuple[str, str, str]]:
+        result = []
+        for i in self.friends_data:
+            result.append((i, self.friends_data[i]["name"], self.friends_data[i]["password"]))
+        return result
+
+    def setFriendList(self, friends : list[tuple[str, str, str]]):
+        self.friends_data.clear()
+        for i in friends:
+            self.friends_data[i[0]] = {"name": i[1], "password": i[2]}
+    
     def setTestJson(self, json : str):
         self.test_json = json
 
@@ -100,4 +111,3 @@ class Settings:
 
     def __del__(self):
         self.save()
-        

@@ -1,6 +1,7 @@
 from PySide6 import QtCore, QtWidgets, QtGui
-from PySide6.QtNetwork import QTcpSocket
+from PySide6.QtNetwork import QAbstractSocket
 from PySide6.QtCore import Signal, Slot
+from PySide6.QtGui import QCloseEvent
 
 from . import service, settings, processor
 from .logger import logger as lg
@@ -32,23 +33,24 @@ class Scene_Control(QtWidgets.QWidget):
 
         # Create a layout for the central widget
         layout = QtWidgets.QHBoxLayout()
-        layout.setAlignment(QtCore.Qt.AlignCenter)
+        layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.setLayout(layout)
 
         # Create a layout for the left panel
         friend_panel = QtWidgets.QVBoxLayout()
-        friend_panel.setAlignment(QtCore.Qt.AlignCenter)
+        friend_panel.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         layout.addLayout(friend_panel, 1)
 
         # Create a list for the friends
         self.friend_list = QtWidgets.QListWidget()
         self.friend_list.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.ExtendedSelection)
         self.friend_list.itemSelectionChanged.connect(self.onSelectionChanged)
+        self.load_friend_settings()
         friend_panel.addWidget(self.friend_list, 1)
 
         # Create a horizontal layout for the buttons
         button_layout = QtWidgets.QHBoxLayout()
-        button_layout.setAlignment(QtCore.Qt.AlignCenter)
+        button_layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         friend_panel.addLayout(button_layout)
 
         # Create a button for adding friends
@@ -70,38 +72,40 @@ class Scene_Control(QtWidgets.QWidget):
 
         # Create a layout for the right panel
         right_layout = QtWidgets.QVBoxLayout()
-        right_layout.setAlignment(QtCore.Qt.AlignCenter)
+        right_layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         layout.addLayout(right_layout, 2)
 
         # Create a vertical layout for the id and password
         id_password_layout = QtWidgets.QVBoxLayout()
-        id_password_layout.setAlignment(QtCore.Qt.AlignCenter)
+        id_password_layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         right_layout.addLayout(id_password_layout, 2)
 
         # Create a line edit to show the id
         self.id = QtWidgets.QLineEdit()
         self.id.setReadOnly(True)
         self.id.setMaximumWidth(150)
-        self.id.setAlignment(QtCore.Qt.AlignCenter)
+        self.id.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        self.id.setText("-")
         id_password_layout.addWidget(self.id)
 
         # Create a line edit to show the password
         self.password = QtWidgets.QLineEdit()
         self.password.setReadOnly(True)
         self.password.setMaximumWidth(150)
-        self.password.setAlignment(QtCore.Qt.AlignCenter)
+        self.password.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        self.id.setText("-")
         id_password_layout.addWidget(self.password)
 
         # Create a vertical layout for the id input and connect button
         id_connect_layout = QtWidgets.QVBoxLayout()
-        id_connect_layout.setAlignment(QtCore.Qt.AlignCenter)
+        id_connect_layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         right_layout.addLayout(id_connect_layout, 3)
 
         # Create a line edit to input the id of friends
         self.friend_id = QtWidgets.QLineEdit()
         self.friend_id.setPlaceholderText("Friend ID")
         self.friend_id.setMaximumWidth(150)
-        self.friend_id.setAlignment(QtCore.Qt.AlignCenter)
+        self.friend_id.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         id_connect_layout.addWidget(self.friend_id)
 
         # Create a button to connect to the friend
@@ -117,14 +121,14 @@ class Scene_Control(QtWidgets.QWidget):
         data = {"id": id, "pwd": pwd}
         item.setData(QtCore.Qt.ItemDataRole.UserRole, data)
         self.friend_list.addItem(item)
+        self.update_friend_settings()
 
     def remove_friend(self):
         items = self.friend_list.selectedItems()
-        lg.log(items)
         for item in items:
-            lg.log(item)
-            self.friend_list.removeItemWidget(item)
+            self.friend_list.takeItem(self.friend_list.row(item))
             del item
+        self.update_friend_settings()
 
     def onSelectionChanged(self):
         items = self.friend_list.selectedItems()
@@ -135,6 +139,25 @@ class Scene_Control(QtWidgets.QWidget):
             self.id_list.append(data["id"])
             self.password_list.append(data["pwd"])
 
+    def load_friend_settings(self):
+        friends = self.settings.getFriendList()
+        for friend in friends:
+            item = QtWidgets.QListWidgetItem()
+            item.setText(friend[1])
+            item.setToolTip("ID: " + friend[0] + "\r\nPassword: " + friend[2])
+            data = {"id": friend[0], "pwd": friend[2]}
+            item.setData(QtCore.Qt.ItemDataRole.UserRole, data)
+            self.friend_list.addItem(item)
+
+    def update_friend_settings(self):
+        friends = list()
+        for i in range(self.friend_list.count()):
+            item = self.friend_list.item(i)
+            data = item.data(QtCore.Qt.ItemDataRole.UserRole)
+            friends.append((data["id"], item.text(), data["pwd"]))
+
+        self.settings.setFriendList(friends)
+
 class Scene_LocateServer(QtWidgets.QWidget):
     def __init__(self, settings, parent = None):
         super().__init__(parent)
@@ -143,13 +166,13 @@ class Scene_LocateServer(QtWidgets.QWidget):
 
         # Create a layout for the central widget
         layout = QtWidgets.QVBoxLayout()
-        layout.setAlignment(QtCore.Qt.AlignCenter)
+        layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.setLayout(layout)
 
         # Create a label to hold the image
         label = QtWidgets.QLabel()
         label.setText("Please enter the branch server address and port\r\n(leave empty for default value)")
-        label.setAlignment(QtCore.Qt.AlignCenter)
+        label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         label.setWordWrap(True)
         layout.addWidget(label)
 
@@ -160,13 +183,13 @@ class Scene_LocateServer(QtWidgets.QWidget):
         self.server_address = QtWidgets.QLineEdit()
         self.server_address.setPlaceholderText("Server address")
         self.server_address.setText(self.settings.status_service_address)
-        self.server_address.setAlignment(QtCore.Qt.AlignCenter)
+        self.server_address.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         middle_layout.addWidget(self.server_address, 5)
 
         self.server_port = QtWidgets.QSpinBox()
         self.server_port.setRange(0, 65535)
         self.server_port.setValue(self.settings.status_service_port)
-        self.server_port.setAlignment(QtCore.Qt.AlignCenter)
+        self.server_port.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         middle_layout.addWidget(self.server_port, 1)
 
         # Create a button to connect to the server
@@ -186,26 +209,26 @@ class Scene_Home(QtWidgets.QWidget):
 
         # Create a layout for the central widget
         layout = QtWidgets.QVBoxLayout()
-        layout.setAlignment(QtCore.Qt.AlignCenter)
+        layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         layout.setSpacing(20)
         self.setLayout(layout)
 
         # Create a label to hold the image
         label = QtWidgets.QLabel()
         label.setText("Welcome to Remoter!")
-        label.setAlignment(QtCore.Qt.AlignCenter)
+        label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(label)
 
         # Create a label to hold the welcome message
         label = QtWidgets.QLabel()
         label.setText("Remoter is a remote control application that can control the computer remotely.")
-        label.setAlignment(QtCore.Qt.AlignCenter)
+        label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(label)
 
         # Create a label to show logo
         logo = QtWidgets.QLabel()
         logo.setPixmap(settings.getLogo(200))
-        logo.setAlignment(QtCore.Qt.AlignCenter)
+        logo.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(logo)
 
 class Scene_Test(QtWidgets.QWidget):
@@ -322,10 +345,9 @@ class Entry(QtWidgets.QMainWindow):
 
         QtCore.QTimer.singleShot(2500, self.show)
 
-    def close(self):
-        if self.status_service.socket.state() != QtCore.QAbstractSocket.UnconnectedState:
+    def closeEvent(self, event: QCloseEvent) -> None:
+        if self.status_service.socket.state() != QAbstractSocket.SocketState.UnconnectedState:
             self.status_service.socket.disconnectFromHost()
-        super().close()
 
     def design(self, settings):
         self.setWindowTitle("Remoter")

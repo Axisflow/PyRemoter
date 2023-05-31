@@ -90,7 +90,7 @@ class StreamService(QObject):
         self.moveToThread(self.self_thread)
         self.self_thread.start()
 
-        self.socket = QUdpSocket()
+        self.socket = QTcpSocket()
         self.socket.moveToThread(self.self_thread)
         self.socket.connected.connect(self.onConnected)
         self.socket.disconnected.connect(self.onDisconnected)
@@ -129,10 +129,11 @@ class StreamService(QObject):
         if(self.socket.state() == QUdpSocket.SocketState.ConnectedState):
             # add a ';' to the end of every element in the array and join them together
             # convert the string to bytes and pad it to 65500 bytes
-            data = ";".join([str(i) for i in array]).encode("utf-8").ljust(65500, b'\x00')
+            data = ";".join([str(i) for i in array]).encode("utf-8")
+            length = len(data).to_bytes(4, byteorder="big")
             # lg.log(data)
-            lg.log("StreamSocket is sending data! {}...".format(data[:100]))
-            self.socket.write(data)
+            lg.log("StreamSocket is sending data! {}...".format(length + data[:100]))
+            self.socket.write(length + data)
             return True
         
         return False
@@ -211,14 +212,12 @@ class StreamService(QObject):
     def AddAskPair(self, id: str):
         self.ask_signals_pair[id] = StreamService.AskPairSignals()
         self.ask_signals_prepared.emit(id, self.ask_signals_pair[id])
-        self.send(["Hello", self.settings.getID()])
         
     need_signals_prepared = Signal(str, NeedPairSignals)
     def AddNeedPair(self, id: str):
         self.need_signals_pair[id] = StreamService.NeedPairSignals()
         self.need_signals_pair[id].send_part_screen.connect(self.sendScreenShot)
         self.need_signals_prepared.emit(id, self.need_signals_pair[id])
-        self.send(["Hello", self.settings.getID()])
 
     @Slot(str, QByteArray)
     def sendScreenShot(self, id: str, seq_id: str, time_stamp: int, part_num: int, width: int, height: int, pixmap: QByteArray):

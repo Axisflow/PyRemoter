@@ -120,7 +120,9 @@ class Scene_Control(QtWidgets.QWidget):
 
     def remove_friend(self):
         items = self.friend_list.selectedItems()
+        lg.log(items)
         for item in items:
+            lg.log(item)
             self.friend_list.removeItemWidget(item)
             del item
 

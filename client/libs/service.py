@@ -109,10 +109,10 @@ class StreamService(QObject):
     def ConnectHost(self, address: str, port: int):
         lg.log("Connecting to " + address + ":" + str(port))
         self.socket.connectToHost(address, port)
-        self.socket.bind(QHostAddress.SpecialAddress.Any, self.socket.localPort())
     
     connected = Signal()
     def onConnected(self):
+        self.send([self.settings.getID(), "Login"]) # 00000000;Login
         self.connected.emit()
 
     disconnected = Signal()
@@ -271,6 +271,7 @@ class CommandService(QObject):
     
     connected = Signal()
     def onConnected(self):
+        self.send(QJsonDocument({"type": "Login", "id": self.settings.getID()}))
         self.connected.emit()
 
     disconnected = Signal()

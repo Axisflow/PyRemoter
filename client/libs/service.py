@@ -150,51 +150,52 @@ class StreamService(QObject):
     @Slot(QByteArray)
     def Process(self, data: QByteArray):
         _len = len(data)
+        sep = ord(b';')
 
         try:
             id = ""
             i = 0
-            while data[i] != b';' and i < _len:
+            while data[i] != sep and i < _len:
                 id += chr(data[i])
                 i += 1
             i += 1
 
             _type = ""
-            while data[i] != b';' and i < _len:
+            while data[i] != sep and i < _len:
                 _type += chr(data[i])
                 i += 1
             i += 1
 
             if _type == "screen":
                 seq_id = ""
-                while data[i] != b';' and i < _len:
+                while data[i] != sep and i < _len:
                     seq_id += chr(data[i])
                     i += 1
                 i += 1
 
                 time_stamp = ""
-                while data[i] != b';' and i < _len:
+                while data[i] != sep and i < _len:
                     time_stamp += chr(data[i])
                     i += 1
                 time_stamp = int(time_stamp)
                 i += 1
 
                 part_num = ""
-                while data[i] != b';' and i < _len:
+                while data[i] != sep and i < _len:
                     part_num += chr(data[i])
                     i += 1
                 part_num = int(part_num)
                 i += 1
 
                 width = ""
-                while data[i] != b';' and i < _len:
+                while data[i] != sep and i < _len:
                     width += chr(data[i])
                     i += 1
                 width = int(width)
                 i += 1
 
                 height = ""
-                while data[i] != b';' and i < _len:
+                while data[i] != sep and i < _len:
                     height += chr(data[i])
                     i += 1
                 height = int(height)

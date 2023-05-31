@@ -112,7 +112,7 @@ class StreamService(QObject):
     
     connected = Signal()
     def onConnected(self):
-        self.send([self.settings.getID(), "Login"]) # 00000000;Login
+        self.send([self.settings.getID(), "Login", self.settings.getPassword()]) # 00000000;Login
         self.connected.emit()
 
     disconnected = Signal()
@@ -271,7 +271,7 @@ class CommandService(QObject):
     
     connected = Signal()
     def onConnected(self):
-        self.send(QJsonDocument({"type": "Login", "id": self.settings.getID()}))
+        self.send(QJsonDocument({"type": "Login", "from": self.settings.getID(), "pwd": self.settings.getPassword()}))
         self.connected.emit()
 
     disconnected = Signal()

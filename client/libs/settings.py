@@ -6,11 +6,11 @@ from .logger import logger as lg
 class Settings:
     def __init__(self):
         self.cwd = QDir.currentPath()
+        self.settings_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppConfigLocation) + "/settings.ini"
         self.load()
 
     def load(self):
-        setting_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppConfigLocation) + "/settings.ini"
-        settings = QSettings(setting_path, QSettings.Format.IniFormat)
+        settings = QSettings(self.settings_path, QSettings.Format.IniFormat)
 
         settings.beginGroup("General")
         self.auto_locate_server = settings.value("auto_locate_server", True, bool)
@@ -23,13 +23,12 @@ class Settings:
         self.password = settings.value("password", "")
         settings.endGroup()
         settings.beginGroup("StatusService")
-        self.status_service_address = settings.value("address", "axisflow.biz")
-        self.status_service_port = settings.value("port", 5000, int)
+        self.status_service_address = settings.value("address", "axisflow.biz", str)
+        self.status_service_port = settings.value("port", 20001, int)
         settings.endGroup()
 
     def save(self):
-        setting_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppConfigLocation) + "/settings.ini"
-        settings = QSettings(setting_path, QSettings.Format.IniFormat)
+        settings = QSettings(self.settings_path, QSettings.Format.IniFormat)
         
         settings.beginGroup("General")
         settings.setValue("auto_locate_server", self.auto_locate_server)
@@ -108,6 +107,3 @@ class Settings:
 
     def getTestJson(self):
         return self.test_json
-
-    def __del__(self):
-        self.save()

@@ -8,7 +8,7 @@ from .logger import logger as lg
 class StatusService(QObject):
     socket = QTcpSocket()
     have_info = Signal(str)
-    def __init__(self, settings):
+    def __init__(self, settings: settings.Settings):
         super().__init__()
         self.settings = settings
         self.socket.connected.connect(self.onConnected)
@@ -19,17 +19,22 @@ class StatusService(QObject):
         if self.settings.getAutoLocateServer():
             self.start()
 
+    def terminate(self):
+        self.stop()
+
     def start(self) -> bool:
         if(self.socket.state() == QTcpSocket.SocketState.UnconnectedState):
-            self.have_info.emit("Connecting to " + self.settings.status_service_address + ":" + str(self.settings.status_service_port))
-            self.socket.connectToHost(self.settings.status_service_address, self.settings.status_service_port)
+            addr, port = self.settings.getStatusServer()
+            self.have_info.emit("Connecting to " + addr + ":" + str(port))
+            self.socket.connectToHost(addr, port)
             return True
         else:
             return False
     
     def stop(self) -> bool:
         if(self.socket.state() == QTcpSocket.SocketState.ConnectedState):
-            self.have_info.emit("Disconnecting from " + self.settings.status_service_address + ":" + str(self.settings.status_service_port))
+            addr, port = self.settings.getStatusServer()
+            self.have_info.emit("Disconnecting from " + addr + ":" + str(port))
             self.socket.disconnectFromHost()
             return True
         else:
@@ -83,7 +88,7 @@ class StreamService(QObject):
     connect_host = Signal(str, int)
     add_ask_pair = Signal(str)
     add_need_pair = Signal(str)
-    def __init__(self, settings):
+    def __init__(self, settings: settings.Settings):
         super().__init__()
         self.settings = settings
 
@@ -232,7 +237,7 @@ class CommandService(QObject):
     connect_host = Signal(str, int)
     add_ask_pair = Signal(str)
     add_need_pair = Signal(str)
-    def __init__(self, settings):
+    def __init__(self, settings: settings.Settings):
         super().__init__()
         self.settings = settings
 

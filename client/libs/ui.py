@@ -3,16 +3,16 @@ from PySide6.QtNetwork import QAbstractSocket
 from PySide6.QtCore import Signal, Slot
 from PySide6.QtGui import QCloseEvent
 
-from . import service, settings, processor
+from . import settings, processor
 from .logger import logger as lg
 
 class Scene_About(QtWidgets.QWidget):
-    def __init__(self, settings, parent = None):
+    def __init__(self, settings: settings.Settings, parent = None):
         super().__init__(parent)
         self.settings = settings
 
 class Scene_Settings(QtWidgets.QWidget):
-    def __init__(self, settings, parent = None):
+    def __init__(self, settings: settings.Settings, parent = None):
         super().__init__(parent)
         self.settings = settings
 
@@ -24,7 +24,7 @@ class Scene_Control(QtWidgets.QWidget):
     """
     id_list = list()
     password_list = list()
-    def __init__(self, settings, parent = None):
+    def __init__(self, settings: settings.Settings, parent = None):
         super().__init__(parent)
         self.settings = settings
         self.msg_addfriend = MsgBox_AddFriend()
@@ -159,7 +159,7 @@ class Scene_Control(QtWidgets.QWidget):
         self.settings.setFriendList(friends)
 
 class Scene_LocateServer(QtWidgets.QWidget):
-    def __init__(self, settings, parent = None):
+    def __init__(self, settings: settings.Settings, parent = None):
         super().__init__(parent)
         self.setMaximumWidth(400)
         self.settings = settings
@@ -179,16 +179,17 @@ class Scene_LocateServer(QtWidgets.QWidget):
         middle_layout = QtWidgets.QHBoxLayout()
         layout.addLayout(middle_layout)
 
+        addr, port = self.settings.getStatusServer()
         # Create a line edit to enter the server address
         self.server_address = QtWidgets.QLineEdit()
         self.server_address.setPlaceholderText("Server address")
-        self.server_address.setText(self.settings.status_service_address)
+        self.server_address.setText(addr)
         self.server_address.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         middle_layout.addWidget(self.server_address, 5)
 
         self.server_port = QtWidgets.QSpinBox()
         self.server_port.setRange(0, 65535)
-        self.server_port.setValue(self.settings.status_service_port)
+        self.server_port.setValue(port)
         self.server_port.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         middle_layout.addWidget(self.server_port, 1)
 
@@ -204,7 +205,7 @@ class Scene_Home(QtWidgets.QWidget):
     """
         Create a label to hold the image and a label to hold the welcome message.
     """
-    def __init__(self, settings, parent = None):
+    def __init__(self, settings: settings.Settings, parent = None):
         super().__init__(parent)
 
         # Create a layout for the central widget
@@ -235,20 +236,20 @@ class Scene_Test(QtWidgets.QWidget):
     """
     Create a line editor to enter string and a button to send it to the server.
     """
-    def __init__(self, settings, parent = None):
+    def __init__(self, settings: settings.Settings, parent = None):
         super().__init__(parent)
         self.settings = settings
 
         # Create a layout for the central widget
         layout = QtWidgets.QVBoxLayout()
-        layout.setAlignment(QtCore.Qt.AlignCenter)
+        layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.setLayout(layout)
 
         # Create a line edit to enter the string
         self.line_edit = QtWidgets.QLineEdit()
         self.line_edit.setPlaceholderText("Enter string")
         self.line_edit.setText(self.settings.getTestJson())
-        self.line_edit.setAlignment(QtCore.Qt.AlignCenter)
+        self.line_edit.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.line_edit)
 
         # Create a button to send the string to the server
@@ -263,19 +264,19 @@ class Scene(QtWidgets.QWidget):
 
         Default scene is home.
     """
-    def __init__(self, settings, parent = None):
+    def __init__(self, settings: settings.Settings, parent = None):
         super().__init__(parent)
         self.settings = settings
 
         # Create a layout for the central widget
         layout = QtWidgets.QVBoxLayout()
-        layout.setAlignment(QtCore.Qt.AlignCenter)
+        layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.setLayout(layout)
 
         # Create a label to hold the title
         title = QtWidgets.QLabel()
         title.setText("Remoter")
-        title.setAlignment(QtCore.Qt.AlignCenter)
+        title.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         # Set the font size to 20 and make it bold
         font = QtGui.QFont()
         font.setPointSize(20)
@@ -285,7 +286,7 @@ class Scene(QtWidgets.QWidget):
 
         # Create a layout for the buttons
         button_layout = QtWidgets.QHBoxLayout()
-        button_layout.setAlignment(QtCore.Qt.AlignCenter)
+        button_layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         layout.addLayout(button_layout, 0)
 
         self.scenes = [["Home", Scene_Home(self.settings), self.to_home], 
@@ -303,7 +304,7 @@ class Scene(QtWidgets.QWidget):
 
         # Create a layout to hold the scene
         self.scene = QtWidgets.QHBoxLayout()
-        self.scene.setAlignment(QtCore.Qt.AlignCenter)
+        self.scene.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.scene.addWidget(self.scenes[0][1])
         self.scenes[0][1].show()
         layout.addLayout(self.scene, 1)
@@ -335,27 +336,26 @@ class Scene(QtWidgets.QWidget):
 
 class Entry(QtWidgets.QMainWindow):
     status_bar_resetter = QtCore.QTimer()
-    def __init__(self, settings):
+    def __init__(self, settings: settings.Settings):
         super().__init__()
         self.settings = settings
-        self.status_service = service.StatusService(settings)
-        self.status_processer = processor.StatusProcessor(settings, self.status_service)
-        self.design(settings)
+        self.status_processer = processor.StatusProcessor(settings)
+        self.design()
         self.build()
 
         QtCore.QTimer.singleShot(2500, self.show)
 
     def closeEvent(self, event: QCloseEvent) -> None:
-        if self.status_service.socket.state() != QAbstractSocket.SocketState.UnconnectedState:
-            self.status_service.socket.disconnectFromHost()
+        self.settings.save()
+        self.status_processer.terminate()
 
-    def design(self, settings):
+    def design(self):
         self.setWindowTitle("Remoter")
         self.resize(800, 600)
-        self.setWindowIcon(settings.getLogoIcon())
+        self.setWindowIcon(self.settings.getLogoIcon())
 
         # Create a widget to hold the layout
-        self.scene = Scene(settings)
+        self.scene = Scene(self.settings)
         self.setCentralWidget(self.scene)
 
         # Create a label to hold the status
@@ -369,9 +369,8 @@ class Entry(QtWidgets.QMainWindow):
         self.scene.scenes[1][1].disconnect_button.clicked.connect(self.DisconnectStatus)
         self.scene.scenes[2][1].connect_friends_button.clicked.connect(self.ConnectFriends)
         self.scene.scenes[5][1].send_button.clicked.connect(self.sendTest)
-        self.status_service.connected.connect(self.onConnected)
-        self.status_service.disconnected.connect(self.onDisconnected)
-        self.status_service.error_occurred.connect(self.showError)
+        self.status_processer.connected.connect(self.onConnected)
+        self.status_processer.disconnected.connect(self.onDisconnected)
         self.status_processer.have_info.connect(self.showInfo)
         self.status_processer.error_occurred.connect(self.showError)
         self.status_processer.need_connect.connect(self.ConnectComfirm)
@@ -379,10 +378,10 @@ class Entry(QtWidgets.QMainWindow):
 
     def ConnectStatus(self):
         self.settings.setStatusServer(self.scene.scenes[1][1].server_address.text(), self.scene.scenes[1][1].server_port.value())
-        self.status_service.start()
+        self.status_processer.start()
 
     def DisconnectStatus(self):
-        self.status_service.stop()
+        self.status_processer.stop()
 
     def ConnectFriends(self):
         self.status_processer.AskConnect(self.scene.scenes[2][1].id_list, self.scene.scenes[2][1].password_list)
@@ -428,7 +427,7 @@ class Entry(QtWidgets.QMainWindow):
     def sendTest(self):
         self.settings.setTestJson(self.scene.scenes[5][1].line_edit.text())
         json = QtCore.QJsonDocument.fromJson(self.scene.scenes[5][1].line_edit.text().encode())
-        self.status_service.send(json)
+        self.status_processer.send(json)
         self.status_bar.showMessage("Send: " + self.scene.scenes[5][1].line_edit.text())
         self.status_bar_resetter.start(10000)
 
@@ -453,7 +452,7 @@ class MsgBox_AddFriend(QtWidgets.QMainWindow):
 
         # Create a label to hold the title
         title = QtWidgets.QLabel("Add Friend")
-        title.setAlignment(QtCore.Qt.AlignCenter)
+        title.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.layout.addWidget(title)
 
         # Create a line edit to enter the friend's name
@@ -469,7 +468,7 @@ class MsgBox_AddFriend(QtWidgets.QMainWindow):
         # Create a password edit to enter the friend's password
         self.password = QtWidgets.QLineEdit()
         self.password.setPlaceholderText("Password")
-        self.password.setEchoMode(QtWidgets.QLineEdit.Password)
+        self.password.setEchoMode(QtWidgets.QLineEdit.EchoMode.Password)
         self.layout.addWidget(self.password)
 
         # Create a button to confirm

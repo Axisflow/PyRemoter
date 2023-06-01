@@ -14,19 +14,36 @@ class ServerLocation:
         return hash((self.addr, self.port))
 
 class StatusProcessor(QObject):
-    def __init__(self, settings, service):
+    def __init__(self, settings: settings.Settings):
         super().__init__()
         self.settings = settings
-        self.service = service
+        self.service = service.StatusService(settings)
         self.stream_processor = StreamProcessor(settings)
         self.command_processor = CommandProcessor(settings)
         self.service.data_received.connect(self.Process)
         self.service.connected.connect(self.onConnected)
+        self.service.disconnected.connect(self.onDisconnected)
         self.service.have_info.connect(self.onInfo)
         self.ask_stream_pair = {}
         self.ask_command_pair = {}
         self.need_stream_pair = {}
         self.need_command_pair = {}
+
+    def terminate(self):
+        self.service.terminate()
+        self.stream_processor.terminate()
+        self.command_processor.terminate()
+
+    def send(self, json: QJsonDocument):
+        self.service.send(json)
+
+    def start(self):
+        self.service.start()
+
+    def stop(self):
+        self.service.stop()
+        self.stream_processor.terminate()
+        self.command_processor.terminate()
 
     @Slot(QJsonDocument)
     def Process(self, json: QJsonDocument):
@@ -85,9 +102,15 @@ class StatusProcessor(QObject):
         lg.log("Info: " + info)
         self.have_info.emit(info)
     
+    connected = Signal()
     def onConnected(self):
         if self.settings.getAutoLogin():
             self.Login()
+        self.connected.emit()
+
+    disconnected = Signal()
+    def onDisconnected(self):
+        self.disconnected.emit()
 
     def GetID(self):
         json_map = {"status": "GetID", "mac": self.GetMacAddress()}
@@ -133,7 +156,7 @@ class StatusProcessor(QObject):
                             return i.hardwareAddress()
 
 class StreamProcessor(QObject):
-    def __init__(self, settings):
+    def __init__(self, settings: settings.Settings):
         self.settings = settings
         
         self.ask_stream_service = {}
@@ -141,6 +164,8 @@ class StreamProcessor(QObject):
         self.need_stream_service = {}
         self.need_stream_management = {}
 
+    def terminate(self):
+        pass
     
     def AddAskPair(self, id: str, addr: str, port: int, management: panel.AskManagement):
         lg.log("Add ask pair: " + id + " " + addr + " " + str(port))
@@ -173,13 +198,16 @@ class StreamProcessor(QObject):
         self.need_stream_management[id].send_screen = signals.send_screen
 
 class CommandProcessor(QObject):
-    def __init__(self, settings):
+    def __init__(self, settings: settings.Settings):
         self.settings = settings
 
         self.ask_command_service = {}
         self.ask_command_management = {}
         self.need_command_service = {}
         self.need_command_management = {}
+
+    def terminate(self):
+        pass
 
     def AddAskPair(self, id: str, addr: str, port: int, management: panel.AskManagement):
         lg.log("Add ask pair: " + id + " " + addr + " " + str(port))

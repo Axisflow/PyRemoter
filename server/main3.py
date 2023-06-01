@@ -11,6 +11,7 @@ def client_handler(conn, addr):
     print(repr(conn) + " " + repr(addr) + "\nhandler start")
     print("-----------------------------------------------------")
     user_id = ''
+    porttype = ''
     try:
         
         while True:
@@ -21,7 +22,7 @@ def client_handler(conn, addr):
             #######################################################
             # length of packet
             #######################################################
-            plen = int.from_bytes(size_bytes, byteorder='little')
+            plen = int.from_bytes(size_bytes, byteorder='big')
             #######################################################
             # receive user data with plen size
             #######################################################
@@ -38,6 +39,12 @@ def client_handler(conn, addr):
                 # two field <type> or <status>
                 #######################################################
                 if json_obj.get('type') is not None:
+                    if porttype == '':
+                        porttype = 'type'
+                        dict0[json_obj['from'] + "1"] = conn
+                        user_id = json_obj['from']
+                        print(dict0)
+                        continue
                     #######################################################
                     # interaction with one another client
                     #######################################################
@@ -54,7 +61,7 @@ def client_handler(conn, addr):
                         # 1.Grab screenshot and uuid1 and another_user as image data
                         # 1.send to another client
                         #######################################################
-                        dict0[another_user].send(msgfromserver)
+                        dict0[another_user + "1"].send(len(msgfromserver).to_bytes(4, byteorder='big') + msgfromserver)
                         print("-----------------【client_send】----------------------")
                         print(msgfromserver)
                         print("------------------------------------------------------")
@@ -64,7 +71,7 @@ def client_handler(conn, addr):
                         # 1.Grab mouse and uuid1 and another_user as image data
                         # 1.send to another client
                         #######################################################
-                        dict0[another_user].send(msgfromserver)
+                        dict0[another_user + "1"].send(len(msgfromserver).to_bytes(4, byteorder='big') + msgfromserver)
                         print("-----------------【client_send】----------------------")
                         print(msgfromserver)
                         print("------------------------------------------------------")
@@ -74,7 +81,7 @@ def client_handler(conn, addr):
                         # 1.Grab mouse(x,y) and uuid1 and another_user as image data
                         # 1.send to another client
                         #######################################################
-                        dict0[another_user].send(msgfromserver)
+                        dict0[another_user + "1"].send(len(msgfromserver).to_bytes(4, byteorder='big') + msgfromserver)
                         print("-----------------【client_send】----------------------")
                         print(msgfromserver)
                         print("------------------------------------------------------")
@@ -84,7 +91,7 @@ def client_handler(conn, addr):
                         # 1.Grab key and uuid1 and another_user as image data
                         # 1.send to another client
                         #######################################################
-                        dict0[another_user].send(msgfromserver)
+                        dict0[another_user + "1"].send(len(msgfromserver).to_bytes(4, byteorder='big') + msgfromserver)
                         print("-----------------【client_send】----------------------")
                         print(msgfromserver)
                         print("------------------------------------------------------")
@@ -94,7 +101,7 @@ def client_handler(conn, addr):
                         # 1.Grab audio and uuid1 and another_user as image data
                         # 1.send to another client
                         #######################################################
-                        dict0[another_user].send(msgfromserver)
+                        dict0[another_user + "1"].send(len(msgfromserver).to_bytes(4, byteorder='big') + msgfromserver)
                         print("-----------------【client_send】----------------------")
                         print(msgfromserver)
                         print("------------------------------------------------------")
@@ -106,7 +113,7 @@ def client_handler(conn, addr):
                         #    client rece: {status:"NeedUpdate", from:<ID number>, key:<Anything>, value:<Anything>}
                         j = {'type': "NeedUpdate", 'from': user_id, 'key': json_obj['key'], 'value': json_obj['value']}
                         j = json.dumps(j).encode('utf-8')
-                        dict0[another_user].send(j)
+                        dict0[another_user + "1"].send(len(j).to_bytes(4, byteorder='big') + j)
                         print("-----------------【client_send】----------------------")
                         print(j)
                         print("------------------------------------------------------")
@@ -118,11 +125,13 @@ def client_handler(conn, addr):
                         #    client rece: {type:"NeedInform", from:<ID number>, key:<Anything>, value:<Anything>}
                         j = {'type': "NeedInform", 'from': user_id, 'key': json_obj['key'], 'value': json_obj['value']}
                         j = json.dumps(j).encode('utf-8')
-                        dict0[another_user].send(j)
+                        dict0[another_user + "1"].send(len(j).to_bytes(4, byteorder='big') + j)
                         print("-----------------【client_send】----------------------")
                         print(j)
                         print("------------------------------------------------------")
                 elif json_obj.get('status') is not None:
+                    if porttype == '':
+                        porttype = 'status'
                     #######################################################
                     # interaction with one client
                     #######################################################
@@ -162,7 +171,7 @@ def client_handler(conn, addr):
                             #                  0        1      2         3        
                             #
                             #######################################################
-                            dict0[str(user_uuid)] = conn
+                            dict0[str(user_uuid) + "2"] = conn
                             client_info[str(user_uuid)] = [mac_data, addr, password, False]
                             with open("client_info.json", "w") as file:
                                 json.dump(client_info, file)
@@ -191,13 +200,13 @@ def client_handler(conn, addr):
                             rows = cur.fetchone()
                             if rows is not None:
                                 user_id = rows[1]
-                                dict0[user_id] = conn
+                                dict0[user_id + "2"] = conn
                             else:
                                 user_id = ''
                             print(user_id)
                         # send message
                         j = json.dumps(j).encode('utf-8')
-                        conn.send(j)
+                        conn.send(len(j).to_bytes(4, byteorder='big') + j)
                         print("-----------------【client_send】----------------------")
                         print(j)
                         print("------------------------------------------------------")
@@ -241,11 +250,11 @@ def client_handler(conn, addr):
                             rows = cur.fetchone()
                             if rows is not None:
                                 user_id = rows[1]
-                                dict0[user_id] = conn
+                                dict0[user_id + "2"] = conn
                             else:
                                 user_id = ''
                             print(user_id)
-                            dict0[user_id] = conn
+                            dict0[user_id + "2"] = conn
                             print(dict0)
                             sql = "UPDATE user_table SET IP = '" + str(addr[0]) + "," + str(addr[1]) + "' WHERE MAC = '" + client_info[user_uuid][0] + "'"
 
@@ -264,7 +273,7 @@ def client_handler(conn, addr):
                         # send message
                         #######################################################
                         j = json.dumps(j).encode('utf-8')
-                        conn.send(j)
+                        conn.send(len(j).to_bytes(4, byteorder='big') + j)
                         print("-----------------【client_send】----------------------")
                         print(j)
                         print("------------------------------------------------------")
@@ -292,7 +301,7 @@ def client_handler(conn, addr):
                             #######################################################
                             # set user_id -> conn
                             #######################################################
-                            dict0[str(user_uuid)] = conn
+                            dict0[str(user_uuid) + "2"] = conn
                             #######################################################
                             # set mac -> user_id
                             #######################################################
@@ -334,7 +343,7 @@ def client_handler(conn, addr):
                         #######################################################
                         # send another user RegisterSuccess/RegisterFail message
                         #######################################################
-                        conn.send(j)
+                        conn.send(len(j).to_bytes(4, byteorder='big') + j)
                         print("-----------------【client_send】----------------------")
                         print(j)
                         print("------------------------------------------------------")
@@ -370,7 +379,7 @@ def client_handler(conn, addr):
                         user_uuid = user_id
                         print(dict0)
                         for key, value in user.items():
-                            if key in client_info and key in dict0:
+                            if key in client_info and (key + "2") in dict0:
                                 if value == "":
                                     #######################################################
                                     # make a json packet
@@ -387,7 +396,7 @@ def client_handler(conn, addr):
                                 #######################################################
                                 # send another user NeedConn  message
                                 #######################################################
-                                dict0[key].send(j)
+                                dict0[key + "2"].send(len(j).to_bytes(4, byteorder='big') + j)
                                 print("-----------------【client_send】----------------------")
                                 print(j)
                                 print("------------------------------------------------------")
@@ -402,7 +411,7 @@ def client_handler(conn, addr):
                         #######################################################
                         # send another user AskConnSuccess  message
                         #######################################################
-                        dict0[another_user].send(j)
+                        dict0[another_user + "2"].send(len(j).to_bytes(4, byteorder='big') + j)
                         print("-----------------【client_send】----------------------")
                         print(j)
                         print("------------------------------------------------------")
@@ -417,7 +426,7 @@ def client_handler(conn, addr):
                         #######################################################
                         # send another user AskConnFail  message
                         #######################################################
-                        dict0[another_user].send(j)
+                        dict0[another_user + "2"].send(len(j).to_bytes(4, byteorder='big') + j)
                         print("-----------------【client_send】----------------------")
                         print(j)
                         print("------------------------------------------------------")
@@ -455,7 +464,7 @@ def client_handler(conn, addr):
                         #######################################################
                         # send another user NeedMonitor  message
                         #######################################################
-                        dict0[another_user].send(j)
+                        dict0[another_user + "2"].send(len(j).to_bytes(4, byteorder='big') + j)
                         print("-----------------【client_send】----------------------")
                         print(j)
                         print("------------------------------------------------------")
@@ -473,7 +482,7 @@ def client_handler(conn, addr):
                         #######################################################
                         # send another user AskMonitorSuccess  message
                         #######################################################
-                        dict0[another_user].send(j)
+                        dict0[another_user + "2"].send(len(j).to_bytes(4, byteorder='big') + j)
                         print("-----------------【client_send】----------------------")
                         print(j)
                         print("------------------------------------------------------")
@@ -491,7 +500,7 @@ def client_handler(conn, addr):
                         #######################################################
                         # send another user AskMonitorSuccess  message
                         #######################################################
-                        dict0[another_user].send(j)
+                        dict0[another_user + "2"].send(len(j).to_bytes(4, byteorder='big') + j)
                         print("-----------------【client_send】----------------------")
                         print(j)
                         print("------------------------------------------------------")
@@ -514,7 +523,7 @@ def client_handler(conn, addr):
                         #######################################################
                         # send another user AskMonitorSuccess  message
                         #######################################################
-                        dict0[another_user].send(j)
+                        dict0[another_user + "2"].send(len(j).to_bytes(4, byteorder='big') + j)
                         print("-----------------【client_send】----------------------")
                         print(j)
                         print("------------------------------------------------------")
@@ -537,7 +546,7 @@ def client_handler(conn, addr):
                         user = json_obj['to']
                         user_uuid = user_id
                         for uid in user:
-                            if uid in client_info and uid in dict0:
+                            if uid in client_info and uid + "2" in dict0:
                                 #######################################################
                                 # make a json packet
                                 #######################################################
@@ -546,7 +555,7 @@ def client_handler(conn, addr):
                                 #######################################################
                                 # send another user AskMonitorSuccess  message
                                 #######################################################
-                                dict0[another_user].send(j)
+                                dict0[another_user + "3"].send(len(j).to_bytes(4, byteorder='big') + j)
                                 print("-----------------【client_send】----------------------")
                                 print(j)
                                 print("------------------------------------------------------")
@@ -560,13 +569,27 @@ def client_handler(conn, addr):
                 for i in msgfromserver:
                     if i == ord(';'):
                         break
-                    header += i
-                if(header.isdigit() and str(header) in client_info):
+                    header += chr(i) 
+                print(header)
+                
+                if porttype == '':
+                    porttype = 'screen'
+                    dict0[header + "3"] = conn
+                    user_id = header
+                    print(dict0)
+                    continue
+                if(header.isdigit() and header in client_info):
+                    print(len(msgfromserver))
                     msg_From_Control_End = bytes(user_id,encoding='utf-8') + msgfromserver[len(header):]
+                    while(len(msg_From_Control_End) < plen):
+                        msgfromserver = conn.recv(plen - len(msg_From_Control_End))
+                        msg_From_Control_End += msgfromserver
+                        print(len(msg_From_Control_End))
                     try:
-                        dict0[header].send(msg_From_Control_End)  
+                        dict0[header + "3"].send(len(msg_From_Control_End).to_bytes(4, byteorder='big') + msg_From_Control_End)  
                         print("成功傳送螢幕")
-                        print(msgfromserver[0:100])
+                        print(len(msg_From_Control_End))
+                        print(msg_From_Control_End[0:100])
                         print("-------msg2----------")
                         print(header)
                         print("---------------------")
@@ -574,6 +597,7 @@ def client_handler(conn, addr):
                         print("---------------------")
                     except ConnectionResetError:
                         pass
+                    
     except socket.timeout:
         return
     return
@@ -646,7 +670,7 @@ if __name__ == '__main__':
         #######################################################
         # Bind to address and ip
         #######################################################
-        TCPServerSocket.bind((localIP, localTCPPort))
+        TCPServerSocket.bind(("0.0.0.0", localTCPPort))
         #######################################################
         #
         #######################################################

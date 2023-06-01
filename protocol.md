@@ -1,4 +1,5 @@
-# 我們需要3個 port: (1)狀態溝通伺服器(TCP)，(2)鍵鼠、命令、檔案控制伺服器(TCP)，(3)影音傳輸伺服器(UDP)
+# 我們需要3個 port: (1)狀態溝通伺服器(TCP，JSON)，(2)鍵鼠命令控制伺服器(TCP，JSON)，(3)影音傳輸伺服器(TCP，分號分隔值字串)
+# 傳送的資料前面都須加上 4 bytes 的長度資訊，以確保資料完整性
 
 ## 1-1 (1)新客戶端在開啟時會跟伺服器要識別代碼(類似Teamviewer的)
 	client send: {status:"GetID", mac:<MAC address>}  
@@ -20,67 +21,59 @@
 	client rece: {status:"NeedConn", from:<ID number>, directly:<True/False>, UDPip:<IP address or alias name>, UDPport:<port number>, TCPip:<格式一樣>, TCPport:<格式一樣>} # directly: True 直接連接模式， False 詢問模式  
 	client send: {status:<"NeedConnAccept"/"NeedConnRefuse">, to:<ID number>[, reason:<Why Refuse?>]} # 有可能被加入黑名單，或在詢問模式被拒絕了之類的
 
+## 3 (2)第一次連接鍵鼠、命令、檔案控制伺服器時，應傳送登入資訊，以確認是否為合法客戶端
+	client send: {type:"Login", from:<ID number>, pwd:<password>}  
+	client rece: {type:<"LoginSuccess"/"LoginFail">[, reason:<Why Fail?>]}
+
+## 4 (3)第一次連接影音傳輸伺服器時，應傳送登入資訊，以確認是否為合法客戶端
+	client send: <ID number>;Login;<password>
+	client rece: <ID number>;<LoginSuccess/LoginFail>[;<Why Fail?>]
+
 ==============================================================================
 
-# General: 傳至正確的被控端並去除 ID number (也可以不用？)
+## 5-1 (2)控制端傳輸使用者動作
+	client send: {type:"ScreenEvent", to:<ID number>, event:<event type>[, <data key>:<data value>]}
 
-## 3-1 (2)控制端傳輸滑鼠座標
-	client send: {type:"MousePoint", to:<ID number>, mx:<mouse point x>, my:<mouse point y>}
+## 5-2 (2)被控端接收使用者動作
+	client rece: {type:"ScreenEvent", from:<ID number>, event:<event type>[, <data key>:<data value>]}
 
-## 3-2 (2)被控端接收滑鼠座標
-	client rece: {type:"MousePoint", from:<ID number>, mx:<mouse point x>, my:<mouse point y>}
+## 6-1 (3)控制端請求更新狀態
+	client send: {type:"AskUpdate", to:<ID number>, key:<Anything>, value:<Anything>}
 
-## 4-1 (2)控制端傳輸滑鼠動作
-	client send: {type:"MouseEvent", to:<ID number>, mtype:<mouse event>}
+## 6-2 (3)被控端接收狀態更新
+	client rece: {type:"NeedUpdate", from:<ID number>, key:<Anything>, value:<Anything>}
 
-## 4-2 (2)被控端接收滑鼠動作
-	client rece: {type:"MouseEvent", from:<ID number>, mtype:<mouse event>}
+## 7-1 (3)被控端請求更新狀態
+	client send: {type:"AskInform", to:<ID number>, key:<Anything>, value:<Anything>}
 
-## 5-1 (2)控制端傳輸鍵盤按鍵組合
-	client send: {type:"Key", to:<ID number>, key:<{key1, key2, ...}>}
-
-## 5-2 (2)被控端接收鍵盤按鍵組合
-	client rece: {type:"Key", from:<ID number>, key:<{key1, key2, ...}>}
+## 7-2 (3)控制端接收狀態更新
+	client rece: {type:"NeedInform", from:<ID number>, key:<Anything>, value:<Anything>}
 
 ===============================================================================
 
-# General: 加上被控端的 ID number 再傳至控制端
-
-## 6-1 (3)被控端傳輸螢幕畫面
+## 8-1 (3)被控端傳輸螢幕畫面
 	client send: <ID number>;screen;<screen data>
 
-## 6-2 (3)控制端接收螢幕畫面
+## 8-2 (3)控制端接收螢幕畫面
 	client rece: <ID number>;screen;<screen data>
 
-## 7-1 (3)被控端傳輸聲音
+## 9-1 (3)被控端傳輸聲音
 	client send: <ID number>;audio;<audio data>
 
-## 7-2 (3)控制端接收聲音
+## 9-2 (3)控制端接收聲音
 	client rece: <ID number>;audio;<audio data>
 
 ===============================================================================
 
 # 做個簡單類似 SNMP 的功能
 
-## 8-1 (2)控制端請求查詢狀態
+## 10-1 (2)控制端請求查詢狀態
 	client send: {status:"AskMonitor", to:<ID number>, question:<Anything>}  
 	client rece: {status:<"AskMonitorSuccess/AskMonitorFail">, from:<ID number>, question:<Anything>[, answer:<Anything>, reason:<Why Fail?>]}
 
-## 8-2 (2)被控端回復狀態查詢
+## 10-2 (2)被控端回復狀態查詢
 	client rece: {status:"NeedMonitor", from:<ID number>, question:<Anything>}  
 	client send: {status:<"NeedMonitorAccept/NeedMonitorRefuse">, to:<ID number>, question:<Anything>[, answer:<Anything>, reason:<Why Refuse?>]}
-
-## 9-1 (3)控制端請求更新狀態
-	client send: {type:"AskUpdate", to:<ID number>, key:<Anything>, value:<Anything>}
-
-## 9-2 (3)被控端接收狀態更新
-	client rece: {type:"NeedUpdate", from:<ID number>, key:<Anything>, value:<Anything>}
-
-## 10-1 (3)被控端請求更新狀態
-	client send: {type:"AskInform", to:<ID number>, key:<Anything>, value:<Anything>}
-
-## 10-2 (3)控制端接收狀態更新
-	client rece: {type:"NeedInform", from:<ID number>, key:<Anything>, value:<Anything>}
 
 ===============================================================================
 

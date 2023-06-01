@@ -77,12 +77,12 @@ class StatusProcessor(QObject):
             
     error_occurred = Signal(str)
     def onError(self, error: str):
-        lg.log(error)
+        lg.log("Error occur: " + error)
         self.error_occurred.emit(error)
 
     have_info = Signal(str)
     def onInfo(self, info: str):
-        lg.log(info)
+        lg.log("Info: " + info)
         self.have_info.emit(info)
     
     def onConnected(self):
@@ -166,11 +166,11 @@ class StreamProcessor(QObject):
 
     def ConnectAsk(self, id: str, signals: service.StreamService.AskPairSignals):
         lg.log("Connect ask: " + id)
-        signals.rece_part_screen.connect(self.ask_stream_management[id].setScreenPixmap)
+        signals.rece_screen.connect(self.ask_stream_management[id].setScreenPixmap)
 
     def ConnectNeed(self, id: str, signals: service.StreamService.NeedPairSignals):
         lg.log("Connect need: " + id)
-        self.need_stream_management[id].send_part_screen = signals.send_part_screen
+        self.need_stream_management[id].send_screen = signals.send_screen
 
 class CommandProcessor(QObject):
     def __init__(self, settings):

@@ -1,4 +1,4 @@
-from PySide6.QtCore import QObject, Signal, Slot, QByteArray, QJsonDocument, QThread
+from PySide6.QtCore import QObject, Signal, Slot, QJsonDocument
 from PySide6.QtNetwork import QNetworkInterface
 
 from . import settings, service, panel

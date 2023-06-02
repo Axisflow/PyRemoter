@@ -1,5 +1,4 @@
 from PySide6 import QtCore, QtWidgets, QtGui
-from PySide6.QtNetwork import QAbstractSocket
 from PySide6.QtCore import Signal, Slot
 from PySide6.QtGui import QCloseEvent
 

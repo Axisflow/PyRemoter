@@ -151,7 +151,7 @@ class ControlBackground(QObject):
 
         self.shot_timer = QTimer(self)
         self.shot_timer.timeout.connect(self.shot)
-        self.shot_timer.setInterval(1000)
+        self.shot_timer.setInterval(47)
         self.shot_timer.start()
 
         self.console = QProcess(self)
@@ -164,7 +164,7 @@ class ControlBackground(QObject):
 
     screenshotted = Signal(QPixmap)
     def shot(self):
-        screen = QScreen.grabWindow(QApplication.primaryScreen(), 0)
+        screen = QApplication.primaryScreen().grabWindow(0)
         pixmap = QPixmap(screen)
         self.screenshotted.emit(pixmap)
 
@@ -282,6 +282,12 @@ class ControlWindow(QMainWindow):
         self.control_screen.keyPressEvent = self.ScreenEvent
         self.control_screen.keyReleaseEvent = self.ScreenEvent
 
+        self.can_move_mouse = True
+        self.mouse_move_timer = QTimer(self)
+        self.mouse_move_timer.setSingleShot(True)
+        self.mouse_move_timer.setInterval(100)
+        self.mouse_move_timer.timeout.connect(self.enableMouseMove)
+
         self.setFocusProxy(self.control_screen)
         self.central_widget.setFocusProxy(self.control_screen)
         lg.log("ControlWindow initialized")
@@ -289,7 +295,10 @@ class ControlWindow(QMainWindow):
     screen_event = Signal(dict)
     def ScreenEvent(self, event):
         if event.type() == QEvent.Type.MouseMove:
-            self.screen_event.emit({"event": "mouse_move", "x": self.now_resolution.width() / self.control_screen.width() * event.position().x(), "y": self.now_resolution.height() / self.control_screen.height() * event.position().y()})
+            if self.can_move_mouse:
+                self.screen_event.emit({"event": "mouse_move", "x": self.now_resolution.width() / self.control_screen.width() * event.position().x(), "y": self.now_resolution.height() / self.control_screen.height() * event.position().y()})
+                self.can_move_mouse = False
+                self.mouse_move_timer.start()
         elif event.type() == QEvent.Type.MouseButtonPress:
             self.screen_event.emit({"event": "mouse_press", "button": NameConverter.ButtonConvert(event.button())})
         elif event.type() == QEvent.Type.MouseButtonRelease:
@@ -297,11 +306,17 @@ class ControlWindow(QMainWindow):
         elif event.type() == QEvent.Type.MouseButtonDblClick:
             self.screen_event.emit({"event": "mouse_double_click", "button": NameConverter.ButtonConvert(event.button())})
         elif event.type() == QEvent.Type.Wheel:
-            self.screen_event.emit({"event": "mouse_wheel", "x": event.angleDelta().x(), "y": event.angleDelta().y()})
+            if self.can_move_mouse:
+                self.screen_event.emit({"event": "mouse_wheel", "x": event.angleDelta().x(), "y": event.angleDelta().y()})
+                self.can_move_mouse = False
+                self.mouse_move_timer.start()
         elif event.type() == QEvent.Type.KeyPress:
             self.screen_event.emit({"event": "key_press", "key": NameConverter.KeyConvert(event.key())})
         elif event.type() == QEvent.Type.KeyRelease:
             self.screen_event.emit({"event": "key_release", "key": NameConverter.KeyConvert(event.key())})
+
+    def enableMouseMove(self):
+        self.can_move_mouse = True
 
     original_screen = None # QPixmap
     @Slot(int, QByteArray)

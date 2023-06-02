@@ -1,4 +1,4 @@
-from PySide6.QtCore import Qt, QDir, QStandardPaths, QSettings, QJsonDocument, QByteArray
+from PySide6.QtCore import Qt, QDir, QStandardPaths, QSettings, QJsonDocument, QByteArray, QRandomGenerator
 from PySide6.QtGui import QPixmap, QIcon
 
 from .logger import logger as lg
@@ -53,6 +53,16 @@ class Settings:
     
     def getDefaultTerminal(self):
         return "cmd.exe"
+    
+    def getConsoleTempDir(self):
+        tmp_dir = QDir.tempPath() + "/remoter_"
+        
+        rd_name = (QRandomGenerator.global_().generate() % 65536).to_bytes(2, "big").hex()
+        while QDir(tmp_dir + rd_name).exists():
+            rd_name = (QRandomGenerator.global_().generate() % 65536).to_bytes(2, "big").hex()
+
+        QDir.temp().mkdir("remoter_" + rd_name)
+        return QDir.tempPath() + "/remoter_" + rd_name
     
     def getLogo(self, size : int) -> QPixmap:
         return QPixmap(self.cwd + "/images/remoter.png").scaled(size, size, Qt.AspectRatioMode.KeepAspectRatioByExpanding)

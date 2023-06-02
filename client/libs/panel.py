@@ -1,8 +1,9 @@
-from PySide6.QtCore import Qt, QObject, Signal, Slot, QThread, QTimer, QEvent, QByteArray, QBuffer, QIODevice, QRandomGenerator, QProcess, QSize
-from PySide6.QtGui import QScreen, QPixmap, QCursor, QResizeEvent, QDesktopServices, QImage
-from PySide6.QtWidgets import QMainWindow, QApplication, QWidget, QLabel, QStatusBar, QTextBrowser, QLineEdit, QGridLayout, QVBoxLayout
+from PySide6.QtCore import Qt, QObject, Signal, Slot, QThread, QTimer, QEvent, QByteArray, QBuffer, QIODevice, QProcess, QSize
+from PySide6.QtGui import QScreen, QPixmap, QResizeEvent, QDesktopServices
+from PySide6.QtWidgets import QMainWindow, QApplication, QWidget, QLabel, QStatusBar, QTextBrowser, QLineEdit, QVBoxLayout
 from PySide6.QtMultimedia import QMediaRecorder
 import pyautogui
+import locale
 
 from . import settings
 from .logger import logger as lg
@@ -155,7 +156,10 @@ class ControlBackground(QObject):
 
         self.console = QProcess(self)
         self.console.setProgram(self.settings.getDefaultTerminal())
-        self.console.readyRead.connect(self.onConsoleReadyRead)
+        self.console.setWorkingDirectory(self.settings.getConsoleTempDir())
+        self.console.readyReadStandardOutput.connect(self.onConsoleReadyReadStdout)
+        self.console.readyReadStandardError.connect(self.onConsoleReadyReadStderr)
+        self.console.finished.connect(self.restartConsole)
         self.console.start()
 
     screenshotted = Signal(QPixmap)
@@ -165,10 +169,18 @@ class ControlBackground(QObject):
         self.screenshotted.emit(pixmap)
 
     console_output = Signal(QByteArray)
-    def onConsoleReadyRead(self):
-        data = self.console.readAll()
-        lg.log(data)
-        self.console_output.emit(data)
+    @Slot()
+    def onConsoleReadyReadStdout(self):
+        self.console_output.emit(self.console.readAllStandardOutput().data().decode(locale.getpreferredencoding()).encode("utf-8"))
+
+    @Slot()
+    def onConsoleReadyReadStderr(self):
+        self.console_output.emit(self.console.readAllStandardError().data().decode(locale.getpreferredencoding()).encode("utf-8"))
+
+    @Slot(int, QProcess.ExitStatus)
+    def restartConsole(self, state: int, status: QProcess.ExitStatus):
+        self.console_output.emit("[Console] {} with state code {}\r\n[Console] Restarting...\r\n\r\n".format("Exited" if status == QProcess.ExitStatus.NormalExit else "Crashed", state).encode("utf-8"))
+        self.console.start()
 
     def WriteConsole(self, data: str):
         self.console.write(data.encode("utf-8"))
@@ -260,6 +272,7 @@ class ControlWindow(QMainWindow):
 
         # Create a frame as a screen
         self.control_screen = QLabel(self.central_widget)
+        self.control_screen.setFocusPolicy(Qt.FocusPolicy.WheelFocus)
         self.control_screen.setMouseTracking(True)
         self.control_screen.mouseMoveEvent = self.ScreenEvent
         self.control_screen.mousePressEvent = self.ScreenEvent
@@ -268,6 +281,9 @@ class ControlWindow(QMainWindow):
         self.control_screen.wheelEvent = self.ScreenEvent
         self.control_screen.keyPressEvent = self.ScreenEvent
         self.control_screen.keyReleaseEvent = self.ScreenEvent
+
+        self.setFocusProxy(self.control_screen)
+        self.central_widget.setFocusProxy(self.control_screen)
         lg.log("ControlWindow initialized")
 
     screen_event = Signal(dict)
@@ -362,12 +378,11 @@ class ControlConsole(QMainWindow):
     def sendCommand(self):
         command = self.input.text()
         self.input.clear()
-        self.output.append("<font color=\"blue\">{}\r\n</font>".format(command))
         self.command_sent.emit(command + "\r\n")
 
     @Slot(str)
     def AppendOutput(self, text):
-        self.output.append(text)
+        self.output.insertPlainText(text)
 
 class AskManagement(QObject):
     class Thread(QThread):

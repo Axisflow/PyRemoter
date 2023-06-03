@@ -101,16 +101,28 @@ class Settings:
     def getPassword(self):
         return self.password
     
-    def getFriendList(self) -> list[tuple[str, str, str]]:
-        result = []
-        for i in self.friends_data:
-            result.append((i, self.friends_data[i]["name"], self.friends_data[i]["password"]))
-        return result
+    def existFriend(self, id : str) -> bool:
+        return id in self.friends_data
 
     def setFriendList(self, friends : list[tuple[str, str, str]]):
         self.friends_data.clear()
         for i in friends:
             self.friends_data[i[0]] = {"name": i[1], "password": i[2]}
+    
+    def getFriendList(self) -> list[tuple[str, str, str]]:
+        result = []
+        for i in self.friends_data:
+            result.append((i, self.friends_data[i]["name"], self.friends_data[i]["password"]))
+        return result
+    
+    def setFriendData(self, id: str, key, value):
+        self.friends_data[id][key] = value
+
+    def getFriendData(self, id: str, key):
+        return self.friends_data[id][key]
+    
+    def existFriendData(self, id : str, key) -> bool:
+        return key in self.friends_data[id]
     
     def setTestJson(self, json : str):
         self.test_json = json

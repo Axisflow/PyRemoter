@@ -1,7 +1,9 @@
 from PySide6.QtCore import Qt, QObject, Signal, Slot, QThread, QTimer, QEvent, QByteArray, QBuffer, QIODevice, QProcess, QSize
-from PySide6.QtGui import QScreen, QPixmap, QResizeEvent, QDesktopServices
+from PySide6.QtGui import QScreen, QPixmap, QResizeEvent, QDesktopServices, QCloseEvent
 from PySide6.QtWidgets import QMainWindow, QApplication, QWidget, QLabel, QStatusBar, QTextBrowser, QLineEdit, QVBoxLayout
 from PySide6.QtMultimedia import QMediaRecorder
+from PIL import Image
+import io
 import pyautogui
 import locale
 
@@ -164,9 +166,7 @@ class ControlBackground(QObject):
 
     screenshotted = Signal(QPixmap)
     def shot(self):
-        screen = QApplication.primaryScreen().grabWindow(0)
-        pixmap = QPixmap(screen)
-        self.screenshotted.emit(pixmap)
+        self.screenshotted.emit(QApplication.primaryScreen().grabWindow(0))
 
     console_output = Signal(QByteArray)
     @Slot()
@@ -252,7 +252,15 @@ class NeedManagement(QObject):
         _bytes = QByteArray()
         _buffer = QBuffer(_bytes)
         _buffer.open(QIODevice.OpenModeFlag.WriteOnly)
-        pixmap.save(_buffer, "JPG")
+        pixmap.save(_buffer, "PNG")
+        _buffer.close()
+
+        # convert png bytes to webp bytes
+        _img = Image.open(io.BytesIO(_bytes.data()))
+        _bytes.clear()
+        _buffer.open(QIODevice.OpenModeFlag.WriteOnly)
+        _img.save(_buffer, "webp")
+        _buffer.close()
         return _bytes
 
 class ControlWindow(QMainWindow):
@@ -349,11 +357,23 @@ class ControlWindow(QMainWindow):
         if self.original_screen != None:
             self.control_screen.setPixmap(self.original_screen.scaled(self.control_screen.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
 
+    closing_window_data_return = Signal(str, dict) # window type, data
+    def closeEvent(self, event: QCloseEvent) -> None:
+        self.closing_window_data_return.emit("control_window", {"w": self.width(), "h": self.height()})
+        return super().closeEvent(event)
+
     @staticmethod
     def fromByteArray(data: QByteArray) -> QPixmap:
-        p = QPixmap()
-        p.loadFromData(data, "JPG")
-        return p
+        # use PIL convert the webp byte array to png byte array
+        _img = Image.open(io.BytesIO(data.data()))
+        data.clear()
+        _buffer = QBuffer(data)
+        _buffer.open(QIODevice.OpenModeFlag.WriteOnly)
+        _img.save(_buffer, "png")
+        _buffer.close()
+        _p = QPixmap()
+        _p.loadFromData(data, "PNG")
+        return _p
 
 class ControlConsole(QMainWindow):
     append_output = Signal(str)
@@ -398,6 +418,11 @@ class ControlConsole(QMainWindow):
     @Slot(str)
     def AppendOutput(self, text):
         self.output.insertPlainText(text)
+        
+    closing_window_data_return = Signal(str, dict) # window type, data
+    def closeEvent(self, event: QCloseEvent) -> None:
+        self.closing_window_data_return.emit("control_console", {"w": self.width(), "h": self.height()})
+        return super().closeEvent(event)
 
 class AskManagement(QObject):
     class Thread(QThread):
@@ -417,10 +442,16 @@ class AskManagement(QObject):
         self.start.connect(self.__start__)
 
         self.window = ControlWindow(self.settings)
+        control_window_size = settings.getFriendData(id, "control_window_size") if settings.existFriendData(id, "control_window_size") else {"w": 1280, "h": 720}
+        self.window.resize(control_window_size["w"], control_window_size["h"])
+        self.window.closing_window_data_return.connect(self.saveWindowData)
         self.window.screen_event.connect(self.sendScreenEvent)
         self.window.show()
 
         self.console = ControlConsole(self.settings)
+        control_console_size = settings.getFriendData(id, "control_console_size") if settings.existFriendData(id, "control_console_size") else {"w": 640, "h": 480}
+        self.console.resize(control_console_size["w"], control_console_size["h"])
+        self.console.closing_window_data_return.connect(self.saveWindowData)
         self.console.command_sent.connect(self.sendCommand)
         self.console.show()
         lg.log("AskManagement started")
@@ -448,3 +479,9 @@ class AskManagement(QObject):
     def NeedInform(self, key: str, value: str):
         if key == "ConsoleOutput":
             self.console.append_output.emit(value)
+
+    def saveWindowData(self, window_type: str, data: dict):
+        if window_type == "control_window":
+            self.settings.setFriendData(self.id, "control_window_size", {"w": data["w"], "h": data["h"]})
+        elif window_type == "control_console":
+            self.settings.setFriendData(self.id, "control_console_size", {"w": data["w"], "h": data["h"]})

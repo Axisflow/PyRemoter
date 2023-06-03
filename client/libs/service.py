@@ -266,7 +266,6 @@ class CommandService(QObject):
         self.socket.errorOccurred.connect(self.onError)
         self.socket.readyRead.connect(self.onReadyRead)
         self.data_received.connect(self.Process)
-        self.__ready_read_reemitter.connect(self.onReadyRead)
 
         self.ask_signals_pair = {}
         self.need_signals_pair = {}
@@ -305,11 +304,10 @@ class CommandService(QObject):
             return False
         
     data_received = Signal(QJsonDocument)
-    __ready_read_reemitter = Signal()
     unfinished_length = None
     unfinished_data = QByteArray()
     unfinish = False
-    def onReadyRead(self):
+    def onReadyRead(self, again: bool = True):
         if self.socket.bytesAvailable() > 0:
             if self.unfinish == False:
                 self.unfinished_length = int.from_bytes(self.socket.read(4), byteorder="big")
@@ -325,8 +323,8 @@ class CommandService(QObject):
                 lg.log("CommandSocket received data! {}...".format(self.unfinished_data[:75]))
                 self.data_received.emit(QJsonDocument.fromJson(self.unfinished_data))
                 self.unfinish = False
-                if self.socket.bytesAvailable() > 0:
-                    self.__ready_read_reemitter.emit()
+                if again and self.socket.bytesAvailable() > 0:
+                    self.onReadyRead(False)
             else:
                 self.unfinish = True
 

@@ -244,24 +244,38 @@ class NeedManagement(QObject):
         self.features_state[feature.name] = True
         if feature == FeatureType.Screen:
             self.screen_process.enable()
+        elif feature == FeatureType.Keyboard:
+            pass
+        elif feature == FeatureType.Mouse:
+            pass
         elif feature == FeatureType.Console:
             self.console_process.enable()
         else:
             lg.log("Unknown Feature: " + feature.name)
+        self.inform.emit(self.id, "EnableFeature", feature.name)
 
     def DisableFeature(self, feature: FeatureType):
         self.features_state[feature.name] = False
         if feature == FeatureType.Screen:
             self.screen_process.disable()
+        elif feature == FeatureType.Keyboard:
+            pass
+        elif feature == FeatureType.Mouse:
+            pass
         elif feature == FeatureType.Console:
             self.console_process.disable()
         else:
             lg.log("Unknown Feature: " + feature.name)
+        self.inform.emit(self.id, "DisableFeature", feature.name)
 
     @Slot(str, str)
     def NeedUpdate(self, key: str, value: str):
         if key == "ConsoleInput":
             self.console_process.WriteConsole(value)
+        elif key == "EnableFeature":
+            self.EnableFeature(FeatureType[value])
+        elif key == "DisableFeature":
+            self.DisableFeature(FeatureType[value])
         else:
             lg.log("Unknown Key: " + key)
 
@@ -278,26 +292,33 @@ class NeedManagement(QObject):
     @Slot(dict)
     def ProcessScreenEvent(self, event: dict):
         if event["event"] == "mouse_move":
-            pyautogui.moveTo(event["x"], event["y"])
+            if self.features_state[FeatureType.Mouse.name]:
+                pyautogui.moveTo(event["x"], event["y"])
         elif event["event"] == "mouse_press":
-            pyautogui.mouseDown(button=event["button"])
+            if self.features_state[FeatureType.Mouse.name]:
+                pyautogui.mouseDown(button=event["button"])
         elif event["event"] == "mouse_release":
-            pyautogui.mouseUp(button=event["button"])
+            if self.features_state[FeatureType.Mouse.name]:
+                pyautogui.mouseUp(button=event["button"])
         elif event["event"] == "mouse_double_click":
-            pyautogui.doubleClick(button=event["button"])
+            if self.features_state[FeatureType.Mouse.name]:
+                pyautogui.doubleClick(button=event["button"])
         elif event["event"] == "mouse_wheel":
-            if(event["x"] > 0):
-                pyautogui.hscroll(1)
-            elif(event["x"] < 0):
-                pyautogui.hscroll(-1)
-            if(event["y"] > 0):
-                pyautogui.vscroll(1)
-            elif(event["y"] < 0):
-                pyautogui.vscroll(-1)
+            if self.features_state[FeatureType.Mouse.name]:
+                if(event["x"] > 0):
+                    pyautogui.hscroll(1)
+                elif(event["x"] < 0):
+                    pyautogui.hscroll(-1)
+                if(event["y"] > 0):
+                    pyautogui.vscroll(1)
+                elif(event["y"] < 0):
+                    pyautogui.vscroll(-1)
         elif event["event"] == "key_press":
-            pyautogui.keyDown(event["key"])
+            if self.features_state[FeatureType.Keyboard.name]:
+                pyautogui.keyDown(event["key"])
         elif event["event"] == "key_release":
-            pyautogui.keyUp(event["key"])
+            if self.features_state[FeatureType.Keyboard.name]:
+                pyautogui.keyUp(event["key"])
 
     @staticmethod
     def toByteArray(pixmap: QPixmap):
@@ -480,6 +501,7 @@ class ControlWindow(QMainWindow):
         self.control_screen.wheelEvent = self.ScreenEvent
         self.control_screen.keyPressEvent = self.ScreenEvent
         self.control_screen.keyReleaseEvent = self.ScreenEvent
+        self.screen_data_setter.connect(self.setScreenData)
 
         self.can_move_mouse = True
         self.mouse_move_timer = QTimer(self)
@@ -491,42 +513,73 @@ class ControlWindow(QMainWindow):
         self.central_widget.setFocusProxy(self.control_screen)
         lg.log("ControlWindow initialized")
 
+    feature_state = {FeatureType.Screen: False, FeatureType.Keyboard: False, FeatureType.Mouse: False}
+    def enable(self, feature: FeatureType):
+        if feature == FeatureType.Screen:
+            self.control_screen.setVisible(True)
+            self.feature_state[feature] = True
+        elif feature == FeatureType.Keyboard:
+            self.feature_state[feature] = True
+        elif feature == FeatureType.Mouse:
+            self.feature_state[feature] = True
+
+        self.show()
+
+    def disable(self, feature: FeatureType):
+        if feature == FeatureType.Screen:
+            self.control_screen.setVisible(False)
+            self.feature_state[feature] = False
+        elif feature == FeatureType.Keyboard:
+            self.feature_state[feature] = False
+        elif feature == FeatureType.Mouse:
+            self.feature_state[feature] = False
+
+        if self.feature_state[FeatureType.Keyboard] == False and self.feature_state[FeatureType.Mouse] == False and self.feature_state[FeatureType.Screen] == False:
+            self.hide()
+
     screen_event = Signal(dict)
     def ScreenEvent(self, event):
         if event.type() == QEvent.Type.MouseMove:
-            if self.can_move_mouse:
+            if self.can_move_mouse and self.feature_state[FeatureType.Mouse]:
                 self.screen_event.emit({"event": "mouse_move", "x": self.now_resolution.width() / self.control_screen.width() * event.position().x(), "y": self.now_resolution.height() / self.control_screen.height() * event.position().y()})
                 self.can_move_mouse = False
                 self.mouse_move_timer.start()
         elif event.type() == QEvent.Type.MouseButtonPress:
-            self.screen_event.emit({"event": "mouse_press", "button": NameConverter.ButtonConvert(event.button())})
+            if self.feature_state[FeatureType.Mouse]:
+                self.screen_event.emit({"event": "mouse_press", "button": NameConverter.ButtonConvert(event.button())})
         elif event.type() == QEvent.Type.MouseButtonRelease:
-            self.screen_event.emit({"event": "mouse_release", "button": NameConverter.ButtonConvert(event.button())})
+            if self.feature_state[FeatureType.Mouse]:
+                self.screen_event.emit({"event": "mouse_release", "button": NameConverter.ButtonConvert(event.button())})
         elif event.type() == QEvent.Type.MouseButtonDblClick:
-            self.screen_event.emit({"event": "mouse_double_click", "button": NameConverter.ButtonConvert(event.button())})
+            if self.feature_state[FeatureType.Mouse]:
+                self.screen_event.emit({"event": "mouse_double_click", "button": NameConverter.ButtonConvert(event.button())})
         elif event.type() == QEvent.Type.Wheel:
-            if self.can_move_mouse:
+            if self.can_move_mouse and self.feature_state[FeatureType.Mouse]:
                 self.screen_event.emit({"event": "mouse_wheel", "x": event.angleDelta().x(), "y": event.angleDelta().y()})
                 self.can_move_mouse = False
                 self.mouse_move_timer.start()
         elif event.type() == QEvent.Type.KeyPress:
-            self.screen_event.emit({"event": "key_press", "key": NameConverter.KeyConvert(event.key())})
+            if self.feature_state[FeatureType.Keyboard]:
+                self.screen_event.emit({"event": "key_press", "key": NameConverter.KeyConvert(event.key())})
         elif event.type() == QEvent.Type.KeyRelease:
-            self.screen_event.emit({"event": "key_release", "key": NameConverter.KeyConvert(event.key())})
+            if self.feature_state[FeatureType.Keyboard]:
+                self.screen_event.emit({"event": "key_release", "key": NameConverter.KeyConvert(event.key())})
 
     def enableMouseMove(self):
         self.can_move_mouse = True
 
     original_screen = None # QPixmap
-    @Slot(int, QByteArray)
+    screen_data_setter = Signal(QByteArray)
+    @Slot(QByteArray)
     def setScreenData(self, pixmap):
-        _p = ControlWindow.fromByteArray(pixmap)
-        if(self.now_resolution != _p.size()):
-            self.now_resolution = _p.size()
+        if self.feature_state[FeatureType.Screen]:
+            _p = ControlWindow.fromByteArray(pixmap)
+            if(self.now_resolution != _p.size()):
+                self.now_resolution = _p.size()
+                self.resizeScreen()
+            
+            self.original_screen = _p
             self.resizeScreen()
-        
-        self.original_screen = _p
-        self.resizeScreen()
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
@@ -588,6 +641,12 @@ class ControlConsole(QMainWindow):
 
         self.append_output.connect(self.AppendOutput)
 
+    def enable(self):
+        self.show()
+
+    def disable(self):
+        self.hide()
+
     def openLink(self, url):
         QDesktopServices.openUrl(url)
 
@@ -612,6 +671,7 @@ class AskManagement(QObject):
             self.exec()
 
     update = None # Signal(str, str)
+    session_closed = Signal(str)
     def __init__(self, settings: settings.Settings, id: str):
         super().__init__()
         self.settings = settings
@@ -633,20 +693,6 @@ class AskManagement(QObject):
         self.session_controller.show()
 
         self.initialize_features()
-
-        self.window = ControlWindow(self.settings)
-        control_window_size = settings.getFriendData(id, "control_window_size") if settings.existFriendData(id, "control_window_size") else {"w": 1280, "h": 720}
-        self.window.resize(control_window_size["w"], control_window_size["h"])
-        self.window.closing_window_data_return.connect(self.saveWindowData)
-        self.window.screen_event.connect(self.sendScreenEvent)
-        self.window.show()
-
-        self.console = ControlConsole(self.settings)
-        control_console_size = settings.getFriendData(id, "control_console_size") if settings.existFriendData(id, "control_console_size") else {"w": 640, "h": 480}
-        self.console.resize(control_console_size["w"], control_console_size["h"])
-        self.console.closing_window_data_return.connect(self.saveWindowData)
-        self.console.command_sent.connect(self.sendCommand)
-        self.console.show()
         lg.log("AskManagement started")
 
     start = Signal()
@@ -654,9 +700,80 @@ class AskManagement(QObject):
     def __start__(self):
         pass
 
+    __session_enable_feature = Signal(FeatureType)
+    __session_disable_feature = Signal(FeatureType)
+    __session_clickable_feature = Signal(FeatureType, bool)
+    def initialize_features(self):
+        self.window = ControlWindow(self.settings)
+        control_window_size = self.settings.getFriendData(id, "control_window_size") if self.settings.existFriendData(id, "control_window_size") else {"w": 1280, "h": 720}
+        self.window.resize(control_window_size["w"], control_window_size["h"])
+        self.window.closing_window_data_return.connect(self.saveWindowData)
+        self.window.screen_event.connect(self.sendScreenEvent)
+        self.window.show()
+
+        self.console = ControlConsole(self.settings)
+        control_console_size = self.settings.getFriendData(id, "control_console_size") if self.settings.existFriendData(id, "control_console_size") else {"w": 640, "h": 480}
+        self.console.resize(control_console_size["w"], control_console_size["h"])
+        self.console.closing_window_data_return.connect(self.saveWindowData)
+        self.console.command_sent.connect(self.sendCommand)
+        self.console.show()
+
+        if self.settings.existFriendData(self.id, "ask_features_state"):
+            self.features_state = self.settings.getFriendData(self.id, "ask_features_state")
+        else:
+            self.features_state = {}
+            for feature in FeatureType:
+                self.features_state[feature.name] = False
+            self.settings.setFriendData(self.id, "ask_features_state", self.features_state)
+
+        for i in FeatureType:
+            if i.name not in self.features_state:
+                self.features_state[i.name] = False
+
+            if self.features_state[i.name]:
+                self.__session_enable_feature.emit(i)
+                self.EnableFeature(i)
+            else:
+                self.__session_disable_feature.emit(i)
+                self.DisableFeature(i)
+    
+    def terminate(self):
+        self.session_controller.close()
+        self.window.close()
+        self.console.close()
+        self.settings.setFriendData(self.id, "ask_features_state", self.features_state)
+        self.self_thread.quit()
+        self.self_thread.wait()
+
+    def EnableFeature(self, feature: FeatureType):
+        self.features_state[feature.name] = True
+        if feature == FeatureType.Screen:
+            self.window.enable()
+        elif feature == FeatureType.Keyboard:
+            self.window.enable()
+        elif feature == FeatureType.Mouse:
+            self.window.enable()
+        elif feature == FeatureType.Console:
+            self.console.enable()
+        else:
+            lg.log("Unknown Feature: " + feature.name)
+
+    def DisableFeature(self, feature: FeatureType):
+        self.features_state[feature.name] = False
+        if feature == FeatureType.Screen:
+            self.window.disable()
+        elif feature == FeatureType.Keyboard:
+            self.window.disable()
+        elif feature == FeatureType.Mouse:
+            self.window.disable()
+        elif feature == FeatureType.Console:
+            self.console.disable()
+        else:
+            lg.log("Unknown Feature: " + feature.name)
+
     @Slot(QByteArray)
     def setScreenPixmap(self, pixmap):
-        self.window.setScreenData(pixmap)
+        self.window.screen_data_setter.emit(pixmap)
 
     send_screen_event = None # Signal(str, dict)
     def sendScreenEvent(self, data: dict):

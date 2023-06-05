@@ -84,7 +84,7 @@
 	client rece: {status:"AbortNeedConn", from:<ID number>}
 
 ## 12-1 (1)控制端中斷控制，控制端應
-	client send: {status:"AbortAskConn", to:<{ID1, ID2, ...}>}
+	client send: {status:"AbortAskConn", to:<ID number>}
 
 ## 12-2 (1)控制端中斷控制，被控端應
 	client rece: {status:"AbortAskConn", from:<ID number>}

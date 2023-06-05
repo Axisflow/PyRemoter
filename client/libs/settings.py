@@ -1,4 +1,4 @@
-from PySide6.QtCore import Qt, QDir, QStandardPaths, QSettings, QJsonDocument, QByteArray, QRandomGenerator
+from PySide6.QtCore import Qt, QDir, QStandardPaths, QSettings, QJsonDocument, QByteArray, QRandomGenerator, QSize
 from PySide6.QtGui import QPixmap, QIcon
 
 from .logger import logger as lg
@@ -69,6 +69,12 @@ class Settings:
     
     def getLogoIcon(self) -> QIcon:
         return QIcon(self.cwd + "/images/remoter.png")
+    
+    def getFeatureImage(self, name : str) -> QPixmap:
+        return QPixmap(self.cwd + "/images/feature/" + name + ".png").scaled(self.getFeatureButtonSize(), Qt.AspectRatioMode.KeepAspectRatioByExpanding)
+    
+    def getFeatureButtonSize(self) -> QSize:
+        return QSize(64, 64)
     
     def setStatusServer(self, address : str, port : int):
         self.status_service_address = address

@@ -18,9 +18,6 @@ class StatusService(QObject):
         if self.settings.getAutoLocateServer():
             self.start()
 
-    def terminate(self):
-        self.stop()
-
     def start(self) -> bool:
         if(self.socket.state() == QTcpSocket.SocketState.UnconnectedState):
             addr, port = self.settings.getStatusServer()
@@ -102,6 +99,8 @@ class StreamService(QObject):
     connect_host = Signal(str, int)
     add_ask_pair = Signal(str)
     add_need_pair = Signal(str)
+    remove_ask_pair = Signal(str)
+    remove_need_pair = Signal(str)
     def __init__(self, settings: settings.Settings):
         super().__init__()
         self.settings = settings
@@ -124,10 +123,19 @@ class StreamService(QObject):
         self.connect_host.connect(self.ConnectHost)
         self.add_ask_pair.connect(self.AddAskPair)
         self.add_need_pair.connect(self.AddNeedPair)
+        self.remove_ask_pair.connect(self.RemoveAskPair)
+        self.remove_need_pair.connect(self.RemoveNeedPair)
+
+    def terminate(self):
+        self.socket.disconnectFromHost()
+        self.self_thread.quit()
+        self.self_thread.wait()
 
     @Slot(str, int)
     def ConnectHost(self, address: str, port: int):
         lg.log("Connecting to " + address + ":" + str(port))
+        self.address = address
+        self.port = port
         self.socket.connectToHost(address, port)
     
     connected = Signal()
@@ -135,9 +143,9 @@ class StreamService(QObject):
         self.send([self.settings.getID(), "Login", self.settings.getPassword()]) # 00000000;Login
         self.connected.emit()
 
-    disconnected = Signal()
+    disconnected = Signal(str, int)
     def onDisconnected(self):
-        self.disconnected.emit()
+        self.disconnected.emit(self.address, self.port)
 
     error_occurred = Signal(QTcpSocket.SocketError)
     def onError(self, error: QTcpSocket.SocketError):
@@ -220,6 +228,18 @@ class StreamService(QObject):
         self.need_signals_pair[id].send_screen.connect(self.sendScreenShot)
         self.need_signals_prepared.emit(id, self.need_signals_pair[id])
 
+    def RemoveAskPair(self, id: str):
+        if id in self.need_signals_pair:
+            del self.need_signals_pair[id]
+        if len(self.need_signals_pair) == 0 and len(self.ask_signals_pair) == 0:
+            self.terminate()
+
+    def RemoveNeedPair(self, id: str):
+        if id in self.ask_signals_pair:
+            del self.ask_signals_pair[id]
+        if len(self.need_signals_pair) == 0 and len(self.ask_signals_pair) == 0:
+            self.terminate()
+
     @Slot(str, QByteArray)
     def sendScreenShot(self, id: str, pixmap: QByteArray):
         self.send([id, "screen", pixmap])
@@ -251,6 +271,8 @@ class CommandService(QObject):
     connect_host = Signal(str, int)
     add_ask_pair = Signal(str)
     add_need_pair = Signal(str)
+    remove_ask_pair = Signal(str)
+    remove_need_pair = Signal(str)
     def __init__(self, settings: settings.Settings):
         super().__init__()
         self.settings = settings
@@ -273,10 +295,19 @@ class CommandService(QObject):
         self.connect_host.connect(self.ConnectHost)
         self.add_ask_pair.connect(self.AddAskPair)
         self.add_need_pair.connect(self.AddNeedPair)
+        self.remove_ask_pair.connect(self.RemoveAskPair)
+        self.remove_need_pair.connect(self.RemoveNeedPair)
+
+    def terminate(self):
+        self.socket.disconnectFromHost()
+        self.self_thread.quit()
+        self.self_thread.wait()
 
     @Slot(str, int)
     def ConnectHost(self, address: str, port: int):
         lg.log("Connecting to " + address + ":" + str(port))
+        self.address = address
+        self.port = port
         self.socket.connectToHost(address, port)
     
     connected = Signal()
@@ -284,9 +315,9 @@ class CommandService(QObject):
         self.send(QJsonDocument({"type": "Login", "from": self.settings.getID(), "pwd": self.settings.getPassword()}))
         self.connected.emit()
 
-    disconnected = Signal()
+    disconnected = Signal(str, int)
     def onDisconnected(self):
-        self.disconnected.emit()
+        self.disconnected.emit(self.address, self.port)
 
     error_occurred = Signal(QTcpSocket.SocketError)
     def onError(self, error: QTcpSocket.SocketError):
@@ -364,3 +395,15 @@ class CommandService(QObject):
         self.need_signals_pair[id] = CommandService.NeedPairSignals()
         self.need_signals_pair[id].send_ask_inform.connect(self.sendAskInform)
         self.need_signals_prepared.emit(id, self.need_signals_pair[id])
+
+    def RemoveAskPair(self, id: str):
+        if id in self.need_signals_pair:
+            del self.need_signals_pair[id]
+        if len(self.need_signals_pair) == 0 and len(self.ask_signals_pair) == 0:
+            self.terminate()
+
+    def RemoveNeedPair(self, id: str):
+        if id in self.ask_signals_pair:
+            del self.ask_signals_pair[id]
+        if len(self.need_signals_pair) == 0 and len(self.ask_signals_pair) == 0:
+            self.terminate()

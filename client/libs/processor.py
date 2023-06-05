@@ -24,15 +24,51 @@ class StatusProcessor(QObject):
         self.service.connected.connect(self.onConnected)
         self.service.disconnected.connect(self.onDisconnected)
         self.service.have_info.connect(self.onInfo)
+
+        self.ask_id = []
+        self.need_id = []
         self.ask_stream_pair = {}
         self.ask_command_pair = {}
         self.need_stream_pair = {}
         self.need_command_pair = {}
 
     def terminate(self):
-        self.service.terminate()
-        self.stream_processor.terminate()
-        self.command_processor.terminate()
+        self.stop()
+
+    @Slot(str)
+    def terminateAsk(self, id: str):
+        if id in self.ask_id:
+            self.ask_id.remove(id)
+            self.send(QJsonDocument.fromVariant({"status": "AbortAskConn", "to": id}))
+            self.RemoveAskPair(id)
+
+    def RemoveAskPair(self, id: str):
+        if id in self.ask_id:
+            self.ask_id.remove(id)
+        if id in self.ask_stream_pair:
+            self.stream_processor.RemoveAskPair(id, self.ask_stream_pair[id])
+            self.ask_stream_pair.pop(id)
+        if id in self.ask_command_pair:
+            self.command_processor.RemoveAskPair(id, self.ask_command_pair[id])
+            self.ask_command_pair.pop(id)
+
+    @Slot(str)
+    def terminateNeed(self, id: str):
+        if id in self.need_id:
+            self.need_id.remove(id)
+            self.send(QJsonDocument.fromVariant({"status": "AbortNeedConn", "to": id}))
+            self.RemoveNeedPair(id)
+
+    def RemoveNeedPair(self, id: str):
+        if id in self.need_id:
+            self.need_id.remove(id)
+        if id in self.need_stream_pair:
+            self.stream_processor.RemoveNeedPair(id, self.need_stream_pair[id])
+            self.need_stream_pair.pop(id)
+        if id in self.need_command_pair:
+            self.command_processor.RemoveNeedPair(id, self.need_command_pair[id])
+            self.need_command_pair.pop(id)
+
 
     def send(self, json: QJsonDocument):
         self.service.send(json)
@@ -41,9 +77,11 @@ class StatusProcessor(QObject):
         self.service.start()
 
     def stop(self):
+        for id in self.ask_id:
+            self.terminateAsk(id)
+        for id in self.need_id:
+            self.terminateNeed(id)
         self.service.stop()
-        self.stream_processor.terminate()
-        self.command_processor.terminate()
 
     @Slot(QJsonDocument)
     def Process(self, json: QJsonDocument):
@@ -62,21 +100,32 @@ class StatusProcessor(QObject):
         elif status == "AskConnSuccess":
             id = json_map["from"]
             lg.log("{} accepted your connection request".format(id))
-            self.ask_stream_pair[id] = {"ip": json_map["UDPip"], "port": json_map["UDPport"]}
-            self.ask_command_pair[id] = {"ip": json_map["TCPip"], "port": json_map["TCPport"]}
+            self.ask_id.append(id)
+            self.ask_stream_pair[id] = ServerLocation(json_map["UDPip"], json_map["UDPport"])
+            self.ask_command_pair[id] = ServerLocation(json_map["TCPip"], json_map["TCPport"])
             management = panel.AskManagement(self.settings, id)
-            self.stream_processor.AddAskPair(id, json_map["UDPip"], json_map["UDPport"], management)
-            self.command_processor.AddAskPair(id, json_map["TCPip"], json_map["TCPport"], management)
+            management.session_closed.connect(self.terminateAsk)
+            self.stream_processor.AddAskPair(id, self.ask_stream_pair[id], management)
+            self.command_processor.AddAskPair(id, self.ask_command_pair[id], management)
             management.start.emit()
         elif status == "NeedConn":
             id = json_map["from"]
             directly = json_map["directly"]
-            self.need_stream_pair[id] = {"ip": json_map["UDPip"], "port": json_map["UDPport"]}
-            self.need_command_pair[id] = {"ip": json_map["TCPip"], "port": json_map["TCPport"]}
+            self.need_id.append(id)
+            self.need_stream_pair[id] = ServerLocation(json_map["UDPip"], json_map["UDPport"])
+            self.need_command_pair[id] = ServerLocation(json_map["TCPip"], json_map["TCPport"])
             if directly:
                 self.ReturnNeedConnect(True, id)
             else:
                 self.need_connect.emit(id)
+        elif status == "AbortAskConn":
+            id = json_map["from"]
+            lg.log("{} aborted your connection".format(id))
+            self.RemoveNeedPair(id)
+        elif status == "AbortNeedConn":
+            id = json_map["from"]
+            lg.log("{} aborted your connection".format(id))
+            self.RemoveAskPair(id)
         elif status == "LoginFail":
             self.onError(json_map["reason"])
             if json_map["reason"] == "id is not exist":
@@ -136,10 +185,12 @@ class StatusProcessor(QObject):
         json_map = {"status": "NeedConn" + "Accept" if accept else "Refuse", "to": to}
         if accept:
             management = panel.NeedManagement(self.settings, to)
-            self.stream_processor.AddNeedPair(to, self.need_stream_pair[to]["ip"], self.need_stream_pair[to]["port"], management)
-            self.command_processor.AddNeedPair(to, self.need_command_pair[to]["ip"], self.need_command_pair[to]["port"], management)
+            management.session_closed.connect(self.terminateNeed)
+            self.stream_processor.AddNeedPair(to, self.need_stream_pair[to], management)
+            self.command_processor.AddNeedPair(to, self.need_command_pair[to], management)
         else:
             json_map["reason"] = reason
+            self.need_id.remove(to)
             self.need_stream_pair.pop(to)
             self.need_command_pair.pop(to)
         self.service.send(QJsonDocument.fromVariant(json_map))
@@ -164,26 +215,47 @@ class StreamProcessor(QObject):
         self.need_stream_service = {}
         self.need_stream_management = {}
 
-    def terminate(self):
-        pass
-    
-    def AddAskPair(self, id: str, addr: str, port: int, management: panel.AskManagement):
-        lg.log("Add ask pair: " + id + " " + addr + " " + str(port))
+    def RemoveAskPair(self, id: str, sl: ServerLocation):
+        lg.log("Remove ask pair: " + id + " " + sl.addr + " " + str(sl.port))
+        if(sl in self.ask_stream_service):
+            self.ask_stream_management[id].terminate()
+            self.ask_stream_management.pop(id)
+            self.ask_stream_service[sl].remove_ask_pair.emit(id)
+
+    def RemoveNeedPair(self, id: str, sl: ServerLocation):
+        lg.log("Remove need pair: " + id + " " + sl.addr + " " + str(sl.port))
+        if(sl in self.need_stream_service):
+            self.need_stream_management[id].terminate()
+            self.need_stream_management.pop(id)
+            self.need_stream_service[sl].remove_need_pair.emit(id)
+
+    @Slot(str, int)
+    def DeleteService(self, addr: str, port: int):
         sl = ServerLocation(addr, port)
+        if sl in self.ask_stream_service:
+            self.ask_stream_service[sl].terminate()
+            self.ask_stream_service.pop(sl)
+        if sl in self.need_stream_service:
+            self.need_stream_service[sl].terminate()
+            self.need_stream_service.pop(sl)
+    
+    def AddAskPair(self, id: str, sl: ServerLocation, management: panel.AskManagement):
+        lg.log("Add ask pair: " + id + " " + sl.addr + " " + str(sl.port))
         if(sl not in self.ask_stream_service):
             self.ask_stream_service[sl] = service.StreamService(self.settings)
             self.ask_stream_service[sl].ask_signals_prepared.connect(self.ConnectAsk)
+            self.ask_stream_service[sl].disconnected.connect(self.DeleteService)
             self.ask_stream_service[sl].connect_host.emit(sl.addr, sl.port)
 
         self.ask_stream_management[id] = management
         self.ask_stream_service[sl].add_ask_pair.emit(id)
 
-    def AddNeedPair(self, id: str, addr: str, port: int, management: panel.NeedManagement):
-        lg.log("Add need pair: " + id + " " + addr + " " + str(port))
-        sl = ServerLocation(addr, port)
+    def AddNeedPair(self, id: str, sl: ServerLocation, management: panel.NeedManagement):
+        lg.log("Add need pair: " + id + " " + sl.addr + " " + str(sl.port))
         if(sl not in self.need_stream_service):
             self.need_stream_service[sl] = service.StreamService(self.settings)
             self.need_stream_service[sl].need_signals_prepared.connect(self.ConnectNeed)
+            self.need_stream_service[sl].disconnected.connect(self.DeleteService)
             self.need_stream_service[sl].connect_host.emit(sl.addr, sl.port)
 
         self.need_stream_management[id] = management
@@ -206,26 +278,47 @@ class CommandProcessor(QObject):
         self.need_command_service = {}
         self.need_command_management = {}
 
-    def terminate(self):
-        pass
+    def RemoveAskPair(self, id: str, sl: ServerLocation):
+        lg.log("Remove ask pair: " + id + " " + sl.addr + " " + str(sl.port))
+        if(sl in self.ask_command_service):
+            self.ask_command_management[id].terminate()
+            self.ask_command_management.pop(id)
+            self.ask_command_service[sl].remove_ask_pair.emit(id)
 
-    def AddAskPair(self, id: str, addr: str, port: int, management: panel.AskManagement):
-        lg.log("Add ask pair: " + id + " " + addr + " " + str(port))
+    def RemoveNeedPair(self, id: str, sl: ServerLocation):
+        lg.log("Remove need pair: " + id + " " + sl.addr + " " + str(sl.port))
+        if(sl in self.need_command_service):
+            self.need_command_management[id].terminate()
+            self.need_command_management.pop(id)
+            self.need_command_service[sl].remove_need_pair.emit(id)
+
+    @Slot(str, int)
+    def DeleteService(self, addr: str, port: int):
         sl = ServerLocation(addr, port)
+        if sl in self.ask_command_service:
+            self.ask_command_service[sl].terminate()
+            self.ask_command_service.pop(sl)
+        if sl in self.need_command_service:
+            self.need_command_service[sl].terminate()
+            self.need_command_service.pop(sl)
+
+    def AddAskPair(self, id: str, sl: ServerLocation, management: panel.AskManagement):
+        lg.log("Add ask pair: " + id + " " + sl.addr + " " + str(sl.port))
         if(sl not in self.ask_command_service):
             self.ask_command_service[sl] = service.CommandService(self.settings)
             self.ask_command_service[sl].ask_signals_prepared.connect(self.ConnectAsk)
+            self.ask_command_service[sl].disconnected.connect(self.DeleteService)
             self.ask_command_service[sl].connect_host.emit(sl.addr, sl.port)
 
         self.ask_command_management[id] = management
         self.ask_command_service[sl].add_ask_pair.emit(id)
 
-    def AddNeedPair(self, id: str, addr: str, port: int, management: panel.NeedManagement):
-        lg.log("Add need pair: " + id + " " + addr + " " + str(port))
-        sl = ServerLocation(addr, port)
+    def AddNeedPair(self, id: str, sl: ServerLocation, management: panel.NeedManagement):
+        lg.log("Add need pair: " + id + " " + sl.addr + " " + str(sl.port))
         if(sl not in self.need_command_service):
             self.need_command_service[sl] = service.CommandService(self.settings)
             self.need_command_service[sl].need_signals_prepared.connect(self.ConnectNeed)
+            self.need_command_service[sl].disconnected.connect(self.DeleteService)
             self.need_command_service[sl].connect_host.emit(sl.addr, sl.port)
 
         self.need_command_management[id] = management

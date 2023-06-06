@@ -62,8 +62,6 @@ class SessionController(QMainWindow):
         self.id = id
         self.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, False)
-        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         """
         Create a vertical layout that will contain (a horizontal layout with close label,
         expand label and a horizontal layout with feature buttons) and an ID label.
@@ -157,11 +155,13 @@ class SessionController(QMainWindow):
 
     @Slot(FeatureType)
     def Enable(self, feature: FeatureType):
-        self.feature_buttons[feature.name].Enable()
+        if feature != FeatureType.Null:
+            self.feature_buttons[feature.name].Enable()
 
     @Slot(FeatureType)
     def Disable(self, feature: FeatureType):
-        self.feature_buttons[feature.name].Disable()
+        if feature != FeatureType.Null:
+            self.feature_buttons[feature.name].Disable()
 
 #
 #
@@ -199,7 +199,13 @@ class NeedManagement(QObject):
         self.__session_clickable_feature.connect(self.session_controller.setClickable)
         self.session_controller.show()
 
-        self.initialize_features()
+    started = False
+    @Slot()
+    def start(self):
+        if not self.started:
+            if self.inform != None and self.send_screen != None:
+                self.started = True
+                self.initialize_features()
 
     __session_enable_feature = Signal(FeatureType)
     __session_disable_feature = Signal(FeatureType)
@@ -241,6 +247,9 @@ class NeedManagement(QObject):
         self.self_thread.wait()
 
     def EnableFeature(self, feature: FeatureType):
+        if feature == FeatureType.Null:
+            return
+        
         self.features_state[feature.name] = True
         if feature == FeatureType.Screen:
             self.screen_process.enable()
@@ -255,6 +264,9 @@ class NeedManagement(QObject):
         self.inform.emit(self.id, "EnableFeature", feature.name)
 
     def DisableFeature(self, feature: FeatureType):
+        if feature == FeatureType.Null:
+            return
+        
         self.features_state[feature.name] = False
         if feature == FeatureType.Screen:
             self.screen_process.disable()
@@ -681,8 +693,6 @@ class AskManagement(QObject):
         self.moveToThread(self.self_thread)
         self.self_thread.start()
 
-        self.start.connect(self.__start__)
-
         self.session_controller = SessionController(self.settings, self.id)
         self.session_controller.session_closed.connect(self.session_closed)
         self.session_controller.enabled.connect(self.EnableFeature)
@@ -692,27 +702,27 @@ class AskManagement(QObject):
         self.__session_clickable_feature.connect(self.session_controller.setClickable)
         self.session_controller.show()
 
-        self.initialize_features()
-        lg.log("AskManagement started")
-
-    start = Signal()
+    started = False
     @Slot()
-    def __start__(self):
-        pass
+    def start(self):
+        if not self.started:
+            if self.update != None and self.send_screen_event != None:
+                self.started = True
+                self.initialize_features()
 
     __session_enable_feature = Signal(FeatureType)
     __session_disable_feature = Signal(FeatureType)
     __session_clickable_feature = Signal(FeatureType, bool)
     def initialize_features(self):
         self.window = ControlWindow(self.settings)
-        control_window_size = self.settings.getFriendData(id, "control_window_size") if self.settings.existFriendData(id, "control_window_size") else {"w": 1280, "h": 720}
+        control_window_size = self.settings.getFriendData(self.id, "control_window_size") if self.settings.existFriendData(self.id, "control_window_size") else {"w": 1280, "h": 720}
         self.window.resize(control_window_size["w"], control_window_size["h"])
         self.window.closing_window_data_return.connect(self.saveWindowData)
         self.window.screen_event.connect(self.sendScreenEvent)
         self.window.show()
 
         self.console = ControlConsole(self.settings)
-        control_console_size = self.settings.getFriendData(id, "control_console_size") if self.settings.existFriendData(id, "control_console_size") else {"w": 640, "h": 480}
+        control_console_size = self.settings.getFriendData(self.id, "control_console_size") if self.settings.existFriendData(self.id, "control_console_size") else {"w": 640, "h": 480}
         self.console.resize(control_console_size["w"], control_console_size["h"])
         self.console.closing_window_data_return.connect(self.saveWindowData)
         self.console.command_sent.connect(self.sendCommand)
@@ -746,26 +756,32 @@ class AskManagement(QObject):
         self.self_thread.wait()
 
     def EnableFeature(self, feature: FeatureType):
+        if feature == FeatureType.Null:
+            return
+        
         self.features_state[feature.name] = True
         if feature == FeatureType.Screen:
-            self.window.enable()
+            self.window.enable(feature)
         elif feature == FeatureType.Keyboard:
-            self.window.enable()
+            self.window.enable(feature)
         elif feature == FeatureType.Mouse:
-            self.window.enable()
+            self.window.enable(feature)
         elif feature == FeatureType.Console:
             self.console.enable()
         else:
             lg.log("Unknown Feature: " + feature.name)
 
     def DisableFeature(self, feature: FeatureType):
+        if feature == FeatureType.Null:
+            return
+        
         self.features_state[feature.name] = False
         if feature == FeatureType.Screen:
-            self.window.disable()
+            self.window.disable(feature)
         elif feature == FeatureType.Keyboard:
-            self.window.disable()
+            self.window.disable(feature)
         elif feature == FeatureType.Mouse:
-            self.window.disable()
+            self.window.disable(feature)
         elif feature == FeatureType.Console:
             self.console.disable()
         else:

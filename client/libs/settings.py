@@ -16,6 +16,7 @@ class Settings:
         self.auto_locate_server = settings.value("auto_locate_server", True, bool)
         self.auto_login = settings.value("auto_login", True, bool)
         self.friends_data = QJsonDocument.fromJson(settings.value("friends_data", b"{}", QByteArray)).toVariant()
+        print(self.friends_data)
         self.test_json = settings.value("test_json", '{}')
         settings.endGroup()
         settings.beginGroup("Account")
@@ -34,6 +35,8 @@ class Settings:
         settings.setValue("auto_locate_server", self.auto_locate_server)
         settings.setValue("auto_login", self.auto_login)
         settings.setValue("friends_data", QJsonDocument.fromVariant(self.friends_data).toJson(QJsonDocument.JsonFormat.Compact))
+        print(self.friends_data)
+        print(QJsonDocument.fromVariant(self.friends_data).toJson(QJsonDocument.JsonFormat.Compact))
         settings.setValue("test_json", self.test_json)
         settings.endGroup()
         settings.beginGroup("Account")
@@ -71,10 +74,11 @@ class Settings:
         return QIcon(self.cwd + "/images/remoter.png")
     
     def getFeatureImage(self, name : str) -> QPixmap:
+        print(self.cwd  + "/images/feature/" + name + ".png")
         return QPixmap(self.cwd + "/images/feature/" + name + ".png").scaled(self.getFeatureButtonSize(), Qt.AspectRatioMode.KeepAspectRatioByExpanding)
     
     def getFeatureButtonSize(self) -> QSize:
-        return QSize(64, 64)
+        return QSize(32, 32)
     
     def setStatusServer(self, address : str, port : int):
         self.status_service_address = address
@@ -111,23 +115,33 @@ class Settings:
         return id in self.friends_data
 
     def setFriendList(self, friends : list[tuple[str, str, str]]):
-        self.friends_data.clear()
         for i in friends:
-            self.friends_data[i[0]] = {"name": i[1], "password": i[2]}
+            if i[0] not in self.friends_data:
+                self.friends_data[i[0]] = {}
+            
+            self.friends_data[i[0]]["name"] = i[1]
+            self.friends_data[i[0]]["password"] = i[2]
     
     def getFriendList(self) -> list[tuple[str, str, str]]:
         result = []
         for i in self.friends_data:
-            result.append((i, self.friends_data[i]["name"], self.friends_data[i]["password"]))
+            if self.existFriendData(i, "name"):
+                result.append((i, self.getFriendData(i, "name"), self.getFriendData(i, "password")))
         return result
     
     def setFriendData(self, id: str, key, value):
+        if id not in self.friends_data:
+            self.friends_data[id] = {}
         self.friends_data[id][key] = value
 
     def getFriendData(self, id: str, key):
+        if key not in self.friends_data[id]:
+            return ""
         return self.friends_data[id][key]
     
     def existFriendData(self, id : str, key) -> bool:
+        if id not in self.friends_data:
+            self.friends_data[id] = {}
         return key in self.friends_data[id]
     
     def setTestJson(self, json : str):

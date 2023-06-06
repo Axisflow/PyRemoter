@@ -107,7 +107,6 @@ class StatusProcessor(QObject):
             management.session_closed.connect(self.terminateAsk)
             self.stream_processor.AddAskPair(id, self.ask_stream_pair[id], management)
             self.command_processor.AddAskPair(id, self.ask_command_pair[id], management)
-            management.start.emit()
         elif status == "NeedConn":
             id = json_map["from"]
             directly = json_map["directly"]
@@ -264,10 +263,12 @@ class StreamProcessor(QObject):
     def ConnectAsk(self, id: str, signals: service.StreamService.AskPairSignals):
         lg.log("Connect ask: " + id)
         signals.rece_screen.connect(self.ask_stream_management[id].setScreenPixmap)
+        self.ask_stream_management[id].start()
 
     def ConnectNeed(self, id: str, signals: service.StreamService.NeedPairSignals):
         lg.log("Connect need: " + id)
         self.need_stream_management[id].send_screen = signals.send_screen
+        self.need_stream_management[id].start()
 
 class CommandProcessor(QObject):
     def __init__(self, settings: settings.Settings):
@@ -329,9 +330,11 @@ class CommandProcessor(QObject):
         signals.rece_need_inform.connect(self.ask_command_management[id].NeedInform)
         self.ask_command_management[id].update = signals.send_ask_update
         self.ask_command_management[id].send_screen_event = signals.send_screen_event
+        self.ask_command_management[id].start()
 
     def ConnectNeed(self, id: str, signals: service.CommandService.NeedPairSignals):
         lg.log("Connect need: " + id)
         self.need_command_management[id].inform = signals.send_ask_inform
         signals.rece_need_update.connect(self.need_command_management[id].NeedUpdate)
         signals.rece_screen_event.connect(self.need_command_management[id].ProcessScreenEvent)
+        self.need_command_management[id].start()
